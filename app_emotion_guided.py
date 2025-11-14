@@ -45,7 +45,7 @@ load_css("styles/main.css")
 # =========================================================
 load_dotenv()
 API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = os.getenv("PATIENT_MODEL", "gpt-4o-mini")
+MODEL_NAME = os.getenv("PATIENT_MODEL", "gpt-4.1")
 EMBEDDING_MODEL = os.getenv("PATIENT_EMBEDDING_MODEL", "text-embedding-3-large")
 EVALUATION_MODEL = os.getenv("PATIENT_EVALUATION_MODEL", "gpt-4.1")
 ADMIN_ACCESS_CODE = os.getenv("CHATBOT_ADMIN_CODE", "")
