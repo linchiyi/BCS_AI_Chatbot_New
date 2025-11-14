@@ -798,7 +798,7 @@ col1, col2 = st.columns([3, 2])
 with col1:
     st.markdown(
         f"""
-**👤 病患資訊**  
+**👤 病患資訊 (相關病理報告於功能選單查看）**  
 姓名：{PATIENT_PERSONA['demographics']['name']}（{PATIENT_PERSONA['demographics']['age']} 歲，{PATIENT_PERSONA['demographics']['gender']}）  
 主訴：{', '.join(PATIENT_PERSONA['medical_history']['presenting_symptoms'])}  
 家族史：{PATIENT_PERSONA['medical_history']['family_history']}
