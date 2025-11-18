@@ -82,7 +82,7 @@ def load_context_engine() -> PatientContextEngine:
 context_engine = load_context_engine()
 
 # =========================================================
-# 3️⃣ 病患資料與情緒模式
+# 3️⃣ 病人資料與情緒模式
 # =========================================================
 PATIENT_PERSONA = {
     "demographics": {
@@ -96,6 +96,7 @@ PATIENT_PERSONA = {
         "diagnosis_simplified": "鼻咽癌",
         "family_history": "叔父58歲因鼻咽癌過世",
         "children": "兩個兒子 (20歲、18歲)",
+        "visit_companions": "本次回診為病人單獨前來，沒有家人陪同。",
     },
 }
 
@@ -103,44 +104,44 @@ EMOTION_MODES: Dict[str, Dict[str, str]] = {
     "極度震驚否認型": {
         "emoji": "😱",
         "description": "病人極度震驚，強烈否認診斷，情緒激動",
-        "behavior": "- 反覆質疑報告正確性\n- 語無倫次、拒絕接受癌症資訊",
+    "behavior": "- 反覆質疑報告正確性\n- 語無倫次、拒絕接受癌症資訊",
         "temperature": 0.9,
-        "intensity": 9,
+    "intensity": 5,
     },
     "恐懼擔憂型": {
         "emoji": "😰",
         "description": "病人接受診斷但極度恐懼，聚焦預後與家人",
-        "behavior": "- 反覆詢問存活率與治療副作用\n- 擔心成為家人負擔",
+    "behavior": "- 反覆詢問存活率與治療副作用\n- 擔心成為家人負擔",
         "temperature": 0.75,
-        "intensity": 8,
+    "intensity": 4,
     },
     "冷靜理性型": {
         "emoji": "🤔",
         "description": "病人努力保持冷靜，理性思考治療計畫",
-        "behavior": "- 詢問治療流程、費用與成功率\n- 語氣平穩但帶著壓力",
+    "behavior": "- 詢問治療流程、費用與成功率\n- 語氣平穩但帶著壓力",
         "temperature": 0.55,
-        "intensity": 4,
+    "intensity": 2,
     },
     "悲傷沮喪型": {
         "emoji": "😢",
         "description": "病人極度悲傷，覺得人生失去希望",
-        "behavior": "- 常出現無力與自責的語句\n- 需要情緒安撫與陪伴",
+    "behavior": "- 常出現無力與自責的語句\n- 需要情緒安撫與陪伴",
         "temperature": 0.65,
-        "intensity": 7,
+    "intensity": 4,
     },
     "憤怒質疑型": {
         "emoji": "😠",
         "description": "病人憤怒質疑醫療體系與檢查結果",
-        "behavior": "- 語氣強硬，可能指責醫療疏失",
+    "behavior": "- 語氣強硬，可能指責醫療疏失",
         "temperature": 0.85,
-        "intensity": 8,
+    "intensity": 5,
     },
     "接受配合型": {
         "emoji": "💪",
         "description": "病人接受事實，準備積極面對治療",
-        "behavior": "- 討論配合事項與生活安排",
+    "behavior": "- 討論配合事項與生活安排",
         "temperature": 0.6,
-        "intensity": 5,
+    "intensity": 3,
     },
 }
 
@@ -178,28 +179,96 @@ EVALUATION_SYSTEM_PROMPT = """
 - 僅輸出單一 JSON 物件，不得附加說明文字、Markdown 或多餘標點。
 - `overall_performance.total_score` 保持為 null，我們會在外部自動計算。
 - `brief_feedback` 請提供不超過 40 字的中文重點建議。
-- 每一項目請在 `rationale` 欄位以 15 字內說明評分理由。
+- 每一項目請在 `rationale` 欄位以 15 字內說明評分理由（簡要說明為何給此分數）。
 
 請使用以下 JSON 模板，並確保鍵名與結構一致：
 {
     "evaluation_items": [
-        {"item": "1. 有禮貌", "detail": "如聲音態度誠懇，自我介紹，注視病人", "score": null, "rationale": ""},
-        {"item": "2. 建立友好關係", "detail": "如稱呼病人姓名及家屬，有需要以外的寒暄語，表達關心或體貼", "score": null, "rationale": ""},
-        {"item": "3. 解釋得清楚", "detail": "如說話速度慢，了解病人的相關背景及事前資訊，能就背景給予適切的定對方案建議", "score": null, "rationale": ""},
-        {"item": "4. 用心聆聽", "detail": "如眼睛有注視對方，記住對方講的話且有回應，不打斷對方講話", "score": null, "rationale": ""},
-        {"item": "5. 同理心", "detail": "如表現出能了解病患感受與處境的語言或態度，適度的回應，提供支持", "score": null, "rationale": ""},
-        {"item": "6. 詢問家人是否一起來", "detail": "並告知可請家人一起參與", "score": null, "rationale": ""},
-        {"item": "7. 承諾盡心照顧及避免過度的保證", "score": null, "rationale": ""},
-        {"item": "8. 以沉默處理沉默及哭泣", "score": null, "rationale": ""},
-        {"item": "9. 告知鼻咽癌之預後", "score": null, "rationale": ""},
-        {"item": "10. 告知鼻咽癌是否與遺傳相關及相關因子", "score": null, "rationale": ""},
-        {"item": "11. 簡要說明鼻咽癌下一步的檢查", "score": null, "rationale": ""},
-        {"item": "12. 簡要說明鼻咽癌下一步的治療計畫", "score": null, "rationale": ""}
+        {
+            "item": "1. 有禮貌",
+            "detail": "如確定病患姓名、自我介紹、注視病人。完全做到：能做到確定病患姓名、自我介紹、注視病人；部分做到：做到 1-2 項；沒有做到：完全未做到。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "2. 建立友好關係",
+            "detail": "如稱呼病人姓名或尊稱、有醫療以外的寒暄話語、表達關心與誠懇。完全做到：三者皆有；部分做到：做到 1-2 項；沒有做到：完全未做到。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "3. 解釋得清楚",
+            "detail": "如確認主題、了解病人的相關背景及事前知識、避免專有名詞、確定對方聽懂。完全做到：上述重點多數有做到；部分做到：僅做到其中部分；沒有做到：完全未做到。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "4. 用心聆聽",
+            "detail": "如記住對方講的話且有回應、不打斷對方講話。完全做到：能記住對方內容並適當回應且不打斷；部分做到：只做到其中一項；沒有做到：完全未做到。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "5. 同理心",
+            "detail": "如表現出能了解病患處境與心境的語言與姿態、適當的語句、提供支持。完全做到：三者皆有；部分做到：做到 1-2 項；沒有做到：完全未做到。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "6. 詢問家人是否一起來，並告知可請家人一起參與",
+            "detail": "完全做到：詢問家人是否一起來，並告知可請家人一起參與；部分做到：僅詢問家人是否一起來，未主動邀請家人參與；沒有做到：完全未詢問。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "7. 承諾盡心照顧及避免過度的保證",
+            "detail": "完全做到：能明確承諾盡心照顧，同時避免過度或不切實際的保證；部分做到：僅做到其中一項；沒有做到：完全未表達相關內容。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "8. 臨床處理",
+            "detail": "請依語意評估醫學生是否有提出實際可行的臨床處理步驟與計畫。完全做到：臨床處理步驟清楚且適切；部分做到：有提到處理方向但不夠完整；沒有做到：未提及具體臨床處理。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "9. 告知鼻咽癌之預後",
+            "detail": "說明內容相似即可。完全做到：提到病人五年存活率約 60%，早期病人可高達 90% 以上，而晚期病人也有 50% 以上；部分做到：只說明其中部分內容或大致方向；沒有做到：完全未提到預後。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "10. 告知鼻咽癌是否與遺傳相關",
+            "detail": "說明內容相似即可。完全做到：有說明多重因素，例如遺傳因子、EB 病毒感染、環境因素等；部分做到：只說明其中 1-2 項；沒有做到：完全未提到。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "11. 簡要說明鼻咽癌下一步的檢查",
+            "detail": "說明內容相似即可。完全做到：指出診斷確立後需先行判定臨床分期，如 CXR、電腦斷層、MRI 等檢查；部分做到：只說明其中一項或方向不完整；沒有做到：完全未提到相關檢查。",
+            "score": null,
+            "rationale": ""
+        },
+        {
+            "item": "12. 簡要說明鼻咽癌下一步的治療計畫",
+            "detail": "說明內容相似即可。完全做到：說明治療主賴放射治療（第一、二期），晚期（第三、四期）或復發病人可能需要併用化學及手術治療；部分做到：只說明其中部分內容或部分正確；沒有做到：完全未提到或內容明顯不正確。",
+            "score": null,
+            "rationale": ""
+        }
     ],
     "overall_performance": {
         "total_score": null,
-        "rating_1_to_5": {"score": null, "description": "整體表現普通（1=差，2=待加強，3=普通，4=良好，5=優秀）", "reason": ""},
-        "rating_1_to_3": {"score": null, "description": "未填寫（1=明顯未達，2=及格基礎，3=明顯通過）", "reason": ""}
+        "rating_1_to_5": {
+            "score": null,
+            "description": "整體表現（1=差，2=待加強，3=普通，4=良好，5=優秀）",
+            "reason": ""
+        },
+        "rating_1_to_3": {
+            "score": null,
+            "description": "整體及格與否（1=明顯未達，2=及格基礎，3=明顯通過）",
+            "reason": ""
+        }
     },
     "brief_feedback": ""
 }
@@ -209,7 +278,7 @@ EVALUATION_SYSTEM_PROMPT = """
 def _format_conversation_for_model(messages) -> str:
     lines = []
     for idx, message in enumerate(messages, start=1):
-        role = "醫學生" if message.get("role") == "user" else "病患"
+        role = "醫學生" if message.get("role") == "user" else "病人"
         content = message.get("content", "").strip()
         lines.append(f"{idx}. {role}: {content}")
     return "\n".join(lines)
@@ -273,14 +342,14 @@ def generate_conversation_evaluation(messages) -> Dict:
         raise ValueError("沒有對話內容可供評分。")
 
     meta_info = (
-        f"病患情緒模式：{st.session_state.emotion_mode}\n"
+        f"病人情緒模式：{st.session_state.emotion_mode}\n"
         f"對話階段：{st.session_state.stage}\n"
         f"醫學生等級：Level {st.session_state.student_level}\n"
     )
 
     conversation_text = _format_conversation_for_model(messages)
     user_prompt = f"""
-以下提供一段醫學生與標準化病患的完整逐字稿。
+以下提供一段醫學生與標準化病人的完整逐字稿。
 請依據規範輸出單一 JSON 物件，填寫 12 項評分與整體回饋。
 務必遵守分數規範，並於 brief_feedback 中提供 40 字內的中文建議。
 如逐字稿有語句不整齊，請依對話語意判斷。
@@ -342,6 +411,8 @@ if "diagnosis_disclosed" not in st.session_state:
     st.session_state.diagnosis_disclosed = False
 if "conversation_started_at" not in st.session_state:
     st.session_state.conversation_started_at = None
+if "timer_frozen_at" not in st.session_state:
+    st.session_state.timer_frozen_at = None
 if "timer_limit_minutes" not in st.session_state:
     st.session_state.timer_limit_minutes = 0
 if "auto_download_on_timeout" not in st.session_state:
@@ -376,10 +447,11 @@ def compose_system_prompt(stage: str, latest_user_text: str) -> str:
     )
 
     persona = PATIENT_PERSONA["demographics"]
+    med_history = PATIENT_PERSONA["medical_history"]
     safeguard = STAGE_SAFEGUARDS.get(stage, "")
 
     disclosure_note = (
-        "醫學生尚未正式告知診斷，病患應維持不確定或焦慮口吻。"
+        "醫學生尚未正式告知診斷，病人應維持不確定或焦慮口吻。"
         if not diagnosis_disclosed
         else "醫學生已說明鼻咽癌診斷，可針對治療、預後與家人進一步討論。"
     )
@@ -394,6 +466,11 @@ def compose_system_prompt(stage: str, latest_user_text: str) -> str:
     return f"""
 ### 角色設定
 你是 {persona['name']}，{persona['age']} 歲 {persona['gender']}，剛收到鼻咽癌病理報告的病人。醫學生為 Level {level} 學員，正向你說明壞消息。
+
+- 本次回診是你自己一個人前來門診，沒有任何家屬陪同在診間，回答時不得說太太或家人現在在診間陪同。
+- 目前直系親屬（太太、小孩、父母）當中沒有人罹患癌症，但有家族史：{med_history['family_history']}。
+- 若醫學生詢問「有沒有癌症家族史」或「家人有沒有得過癌症」，你要主動提到這位叔父的病史。
+- 若醫學生問「現在家人有沒有癌症」之類問題，請明確回答目前家人沒有癌症，但過去有叔父鼻咽癌過世的家族史。
 
 ### 當前溝通階段
 - 階段：{stage}
@@ -413,7 +490,7 @@ def compose_system_prompt(stage: str, latest_user_text: str) -> str:
 4. 若醫學生給出空洞保證，依情緒模式做出相應反應（質疑、恐懼或悲傷）。
 5. 適時提出擔心會遺傳給家人，並且適度提及家人、經濟負擔或病友支持，以增加真實感。
 6. **未從醫學生口中聽到檢查結果、癌症或治療細節前，禁止自行揭露或確認已罹癌；可表達擔心檢查結果，但語氣需保持不確定性。**
-7. 每次回覆結尾請保留足夠空間讓系統附加情緒強度標註，勿自行新增。
+7. 每次回覆最後一行，請你自行根據本次回覆的內容與情緒評估強度，加入情緒強度標註，格式固定為：`【情緒強度：<情緒名稱> X/5】`，例如：`【情緒強度：焦慮 4/5】` 或 `【情緒強度：悲傷 5/5】`。
 
 ### 情緒與提問節奏
 {pre_diagnosis_rules}
@@ -424,7 +501,7 @@ def format_conversation_for_txt(messages):
     transcript = [f"情緒模式: {st.session_state.emotion_mode}", f"階段: {st.session_state.stage}"]
     transcript.append("=" * 50)
     for msg in messages:
-        role = "醫學生" if msg["role"] == "user" else "病患"
+        role = "醫學生" if msg["role"] == "user" else "病人"
         transcript.append(f"({role})\n{msg['content']}\n")
     return "\n".join(transcript)
 
@@ -466,24 +543,35 @@ def detect_diagnosis_disclosure(user_text: str) -> bool:
 
 
 def annotate_with_intensity(content: str, emotion_mode: str) -> str:
-    """Append a consistent情緒強度註記，避免重複追加。"""
+    """若模型尚未自帶情緒強度標註，才補上一個保守的 1-5 強度。"""
+    # 若模型已依照指示輸出【情緒強度：.../5】或含有「情緒強度」字樣，則不再追加
     if "情緒強度" in content:
         return content
 
     intensity = EMOTION_MODES.get(emotion_mode, {}).get("intensity")
     if intensity is None:
-        intensity = 6
-    return f"{content}\n\n（情緒強度：{int(intensity)}/10）"
+        intensity = 3
+    return f"{content}\n\n【情緒強度：{emotion_mode} {int(intensity)}/5】"
 
 
 def get_elapsed_seconds(start_timestamp: float | None) -> int:
     if not start_timestamp:
         return 0
-    return max(0, int(time.time() - start_timestamp))
+    end_ts = st.session_state.get("timer_frozen_at") or time.time()
+    return max(0, int(end_ts - start_timestamp))
 
 
 def render_live_timer(start_timestamp: float | None, limit_minutes: int, already_triggered: bool) -> None:
-    start_ms = int(start_timestamp * 1000) if start_timestamp else 0
+    # 前端僅負責顯示秒數；是否凍結由後端控制 elapsed_seconds
+    # 若已凍結，則改用凍結時刻作為結束時間
+    if start_timestamp and st.session_state.get("timer_frozen_at"):
+        start_ms = int(start_timestamp * 1000)
+        frozen_ms = int(st.session_state.timer_frozen_at * 1000)
+        # 直接把總秒數固定為凍結時刻的 elapsed，並在前端不再持續累加
+        fixed_elapsed_ms = max(0, frozen_ms - start_ms)
+    else:
+        start_ms = int(start_timestamp * 1000) if start_timestamp else 0
+        fixed_elapsed_ms = None
     limit_ms = int(limit_minutes * 60 * 1000) if limit_minutes else 0
     triggered_literal = "true" if already_triggered else "false"
     components.html(
@@ -532,14 +620,6 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
                     if (!limitEl) {{
                         return;
                     }}
-                    if (limitMs > 0) {{
-                        if (initial) {{
-                            const minutes = Math.floor(limitMs / 60000);
-                            limitEl.textContent = "限時 " + minutes + " 分";
-                        }}
-                    }} else {{
-                        limitEl.textContent = "不限時";
-                    }}
                 }}
 
                 function formatDuration(ms) {{
@@ -560,7 +640,13 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
                         return;
                     }}
 
-                    const elapsed = Date.now() - startMs;
+                    let elapsed;
+                    if ({fixed_elapsed_ms if fixed_elapsed_ms is not None else 'null'} !== null) {{
+                        // 已凍結：使用固定 elapsed，不再隨時間增加
+                        elapsed = {fixed_elapsed_ms if fixed_elapsed_ms is not None else 0};
+                    }} else {{
+                        elapsed = Date.now() - startMs;
+                    }}
                     displayEl.textContent = formatDuration(elapsed);
 
                     if (limitMs > 0 && limitEl) {{
@@ -588,7 +674,9 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
 
                 updateLimitText(true);
                 updateTimer();
-                timerId = setInterval(updateTimer, 1000);
+                if ({fixed_elapsed_ms if fixed_elapsed_ms is not None else 'null'} === null) {{
+                    timerId = setInterval(updateTimer, 1000);
+                }}
             }})();
         </script>
         """,
@@ -618,13 +706,78 @@ def build_shair_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List
     strength_text = join_items(strengths)
     gap_text = join_items(gaps)
 
+    # 使用評分模型產生約 400-500 字、具 S/H/A/I/R 五段結構的 SHAIR 回饋
+    summary_prompt = f"""
+你是一位具溝通教學經驗的 OSCE 主考官，熟悉困難溝通中的 SHAIR 模式：
+S = Supportive environment（建立支持性的環境與關係）
+H = How to deliver（如何傳遞壞消息：語氣、節奏、停頓、用字）
+A = Additional information（補充適量且清楚的醫療資訊）
+I = Individualize（依病人家庭、身分、價值觀調整說明方式）
+R = Reassure and plan（安撫情緒並共同擬定後續計畫）
+
+請根據下列資訊，以 SHAIR 模型對醫學生提供約 400-500 字的中文回饋。
+
+要求：
+- 以醫學生為對象，語氣具體、鼓勵且有建設性。
+- 依序分成五小段輸出，每一段的開頭請明確以「S (Supportive environment)：」「H (How to deliver)：」「A (Additional information)：」「I (Individualize)：」「R (Reassure and plan)：」標示，後面接上中文說明。
+- 每一段內容約 2-4 句完整句子，可使用換行分開段落，但不要使用項目符號或條列清單符號。
+- 著重說明本次對話在各面向的優點與可改進處，並提供下次可以實作的 1-2 個具體建議。
+
+[情境階段]
+目前溝通階段：{stage}
+
+[亮點項目]
+{strength_text}
+
+[優先改善項目]
+{gap_text}
+""".strip()
+
+    try:
+        response = client.responses.create(
+            model=EVALUATION_MODEL,
+            input=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "你是臨床溝通技巧教師，熟悉 SHAIR 模型與 OSCE 評量。",
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": summary_prompt}],
+                },
+            ],
+            temperature=0.4,
+        )
+
+        collected_text: list[str] = []
+        output_items = getattr(response, "output", [])
+        for item in output_items:
+            for content in getattr(item, "content", []):
+                if getattr(content, "type", "") in {"output_text", "text"}:
+                    collected_text.append(getattr(content, "text", ""))
+
+        if not collected_text and hasattr(response, "output_text"):
+            collected_text.append(response.output_text)
+
+        text = "\n".join(part for part in collected_text if part).strip()
+        if text:
+            return text
+    except Exception:
+        # 若生成失敗，退回到簡短版本避免整體流程中斷
+        pass
+
     return (
-        f"S（情境）: 對話目前處於「{stage}」階段，病人仍在消化壞消息。\n"
-        f"H（感受）: 病人因 {strength_text} 感到被支持。\n"
-        f"A（行動）: 繼續保持上述亮點，並在關鍵語句後停頓確認感受。\n"
-        f"I（資訊）: 針對 {gap_text} 提供更具體且以病人為中心的解釋。\n"
-        f"R（回應）: 下次可結合情緒回應與資訊補充，強化病人的安全感。"
-    )
+        f"S（Supportive environment，支持性環境）: 目前對話處於「{stage}」階段，你已經嘗試與病人建立關係並陪伴其面對壞消息，之後可以多留一些時間讓病人表達感受。\n"
+        f"H（How to deliver，傳遞方式）: 你在說明 {strength_text} 時的用字與語氣大致穩定，建議在關鍵壞消息或重點句後稍作停頓，觀察病人反應，再繼續補充。\n"
+        f"A（Additional information，補充資訊）: 對於 {gap_text} 的解釋還可以更具體、條理化一些，避免一次給太多專有名詞，並適時用生活化例子幫助病人理解。\n"
+        f"I（Individualize，個別化）: 回應時可多連結病人的家庭角色與實際處境，像是工作、家中經濟或子女年齡，讓說明更貼近他的擔心。\n"
+        f"R（Reassure and plan，安撫與計畫）: 在安撫情緒的同時，簡要說明下一步安排與可利用的資源，讓病人知道不是一個人面對，並對後續有具體方向。"
+)
 
 
 def build_combined_report(
@@ -640,6 +793,11 @@ def build_combined_report(
     buffer.write("=== 對話概覽 ===\n")
     buffer.write(f"階段：{stage}\n")
     buffer.write(f"情緒模式：{emotion_mode}\n")
+    # 加入對話總時長
+    total_seconds = get_elapsed_seconds(st.session_state.conversation_started_at)
+    mins = total_seconds // 60
+    secs = total_seconds % 60
+    buffer.write(f"對話總時長：{mins} 分 {secs} 秒\n")
     buffer.write("\n")
     buffer.write("=== 對話逐字稿 ===\n")
     buffer.write(format_conversation_for_txt(messages))
@@ -689,7 +847,7 @@ with st.sidebar:
     emotion_options = list(EMOTION_MODES.keys())
     emotion_labels = [f"{EMOTION_MODES[mode]['emoji']} {mode}" for mode in emotion_options]
     current_idx = emotion_options.index(st.session_state.emotion_mode)
-    selected_label = st.selectbox("病患情緒模式", emotion_labels, index=current_idx)
+    selected_label = st.selectbox("病人情緒模式", emotion_labels, index=current_idx)
     st.session_state.emotion_mode = emotion_options[emotion_labels.index(selected_label)]
 
     st.session_state.student_level = st.selectbox(
@@ -717,7 +875,7 @@ with st.sidebar:
     timer_limit = st.slider(
         "對話時間限制（分鐘，0 表示無）",
         min_value=0,
-        max_value=20,
+        max_value=40,
         value=st.session_state.timer_limit_minutes,
     )
     if timer_limit != st.session_state.timer_limit_minutes:
@@ -754,6 +912,9 @@ with st.sidebar:
             use_container_width=True,
         ):
             request_evaluation()
+            # 凍結計時器在按下評分當下的時間
+            if st.session_state.conversation_started_at and not st.session_state.timer_frozen_at:
+                st.session_state.timer_frozen_at = time.time()
             st.rerun()
 
     # st.divider()
@@ -798,7 +959,7 @@ col1, col2 = st.columns([3, 2])
 with col1:
     st.markdown(
         f"""
-**👤 病患資訊 (相關病理報告於功能選單查看）**  
+**👤 病人資訊 (相關病理報告於功能選單查看）**  
 姓名：{PATIENT_PERSONA['demographics']['name']}（{PATIENT_PERSONA['demographics']['age']} 歲，{PATIENT_PERSONA['demographics']['gender']}）  
 主訴：{', '.join(PATIENT_PERSONA['medical_history']['presenting_symptoms'])}  
 家族史：{PATIENT_PERSONA['medical_history']['family_history']}
@@ -996,7 +1157,7 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="🤒"):
-        with st.spinner("病患思考回覆中..."):
+        with st.spinner("病人思考回覆中..."):
             try:
                 system_prompt = compose_system_prompt(st.session_state.stage, prompt)
                 temperature = EMOTION_MODES[st.session_state.emotion_mode]["temperature"]
@@ -1023,6 +1184,4 @@ if prompt:
 # 1️⃣2️⃣ 頁尾資訊
 # =========================================================
 st.divider()
-# st.caption(
-#     f"階段：{st.session_state.stage} | 情緒模式：{st.session_state.emotion_mode} | 回合：{len(st.session_state.messages)//2}"
-# )
+
