@@ -46,26 +46,39 @@ class SessionLogger:
         2. 本地 (有 token.pickle): 使用已授權的 OAuth token
         3. 本地 (僅有 credentials.json): 需要瀏覽器授權一次
         """
+        print("\n" + "🔵"*30)
+        print("📝 SessionLogger: 初始化 Google Drive service")
+        print("🔵"*30)
+        
         if not GOOGLE_DRIVE_AVAILABLE or not get_drive_service:
-            print("⚠️ Google Drive 功能不可用")
+            print("❌ Google Drive 功能不可用")
+            print("   - GOOGLE_DRIVE_AVAILABLE:", GOOGLE_DRIVE_AVAILABLE)
+            print("   - get_drive_service:", get_drive_service)
             return
         
         try:
             # 直接呼叫 get_drive_service，它會自動偵測環境
             # 並選擇最適合的授權方式（Secrets > token.pickle > credentials.json）
+            print("🚀 呼叫 get_drive_service()...")
             self.drive_service = get_drive_service()
             
             if self.drive_service:
-                print("✅ Google Drive service 初始化成功")
+                print("✅ ✅ ✅ Google Drive service 初始化成功！")
+                print(f"📁 目標資料夾 ID: {self.drive_folder_id}")
             else:
-                print("⚠️ Google Drive service 初始化失敗")
+                print("❌ ❌ ❌ Google Drive service 初始化失敗")
                 print("   可能原因：")
                 print("   - Streamlit Cloud: 需要在 Settings > Secrets 設定 oauth_token")
                 print("   - 本地開發: 需要 token.pickle 或 credentials.json")
+            
+            print("🔵"*30 + "\n")
                 
         except Exception as e:
-            print(f"⚠️ Google Drive service 初始化失敗：{e}")
+            print(f"❌ ❌ ❌ Google Drive service 初始化失敗：{e}")
+            import traceback
+            traceback.print_exc()
             self.drive_service = None
+            print("🔵"*30 + "\n")
     
     def log_session(
         self,

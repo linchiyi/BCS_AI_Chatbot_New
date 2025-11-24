@@ -47,14 +47,29 @@ def get_credentials_from_streamlit_secrets():
     Returns:
         Credentials 物件，如果失敗則返回 None
     """
+    print("🔍 [DEBUG] 檢查 Streamlit Secrets...")
+    
     if not HAS_STREAMLIT:
+        print("⚠️ [DEBUG] Streamlit 模組不可用")
         return None
     
     try:
         if 'oauth_token' not in st.secrets:
+            print("❌ [DEBUG] Secrets 中找不到 oauth_token")
+            print(f"📋 [DEBUG] 可用的 Secrets keys: {list(st.secrets.keys())}")
             return None
         
+        print("✅ [DEBUG] 找到 oauth_token")
         token_info = st.secrets['oauth_token']
+        
+        # 檢查必要欄位
+        required_fields = ['token', 'refresh_token', 'client_id', 'client_secret']
+        for field in required_fields:
+            if field not in token_info:
+                print(f"❌ [DEBUG] oauth_token 缺少欄位: {field}")
+                return None
+            else:
+                print(f"✅ [DEBUG] oauth_token.{field} 存在")
         
         creds = Credentials(
             token=token_info.get('token'),
@@ -65,13 +80,16 @@ def get_credentials_from_streamlit_secrets():
             scopes=token_info.get('scopes', SCOPES)
         )
         
+        print(f"🔑 [DEBUG] Credentials 建立成功，expired={creds.expired}")
+        
         # 如果 token 過期，嘗試更新
         if creds.expired and creds.refresh_token:
+            print("⏳ [DEBUG] Token 已過期，嘗試更新...")
             try:
                 creds.refresh(Request())
                 print("✅ Token 已從 Streamlit Secrets 讀取並更新")
             except Exception as e:
-                print(f"⚠️ Token 更新失敗：{e}")
+                print(f"❌ Token 更新失敗：{e}")
                 return None
         else:
             print("✅ Token 已從 Streamlit Secrets 讀取")
@@ -79,7 +97,9 @@ def get_credentials_from_streamlit_secrets():
         return creds
         
     except Exception as e:
-        print(f"⚠️ 從 Streamlit Secrets 讀取 token 失敗：{e}")
+        print(f"❌ 從 Streamlit Secrets 讀取 token 失敗：{e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def get_drive_service(credentials_file: str = 'credentials.json', token_file: str = 'token.pickle'):
@@ -98,44 +118,65 @@ def get_drive_service(credentials_file: str = 'credentials.json', token_file: st
     Returns:
         Google Drive API service 物件，如果失敗則返回 None
     """
+    print("\n" + "="*60)
+    print("🚀 [DEBUG] 開始初始化 Google Drive service")
+    print("="*60)
+    
     if not GOOGLE_DRIVE_AVAILABLE:
-        print("⚠️ Google Drive API libraries 未安裝")
+        print("❌ Google Drive API libraries 未安裝")
         return None
     
     creds = None
     
     # 方法 1: 從 Streamlit Secrets 讀取（Streamlit Cloud 環境）
+    print(f"📍 [DEBUG] 方法 1: 檢查 Streamlit Secrets (HAS_STREAMLIT={HAS_STREAMLIT})")
     if HAS_STREAMLIT:
         creds = get_credentials_from_streamlit_secrets()
         if creds:
+            print("🎯 [DEBUG] 使用 Streamlit Secrets 中的憑證")
             try:
                 service = build('drive', 'v3', credentials=creds)
                 print("✅ 使用 Streamlit Secrets 中的 OAuth token")
+                print("="*60 + "\n")
                 return service
             except Exception as e:
-                print(f"⚠️ 使用 Secrets token 建立 service 失敗：{e}")
+                print(f"❌ 使用 Secrets token 建立 service 失敗：{e}")
                 creds = None
+        else:
+            print("⚠️ [DEBUG] Streamlit Secrets 中沒有有效的憑證")
     
     # 方法 2: 從本地檔案讀取 token
+    print(f"📍 [DEBUG] 方法 2: 檢查本地 token.pickle ({token_file})")
     if os.path.exists(token_file):
+        print(f"✅ [DEBUG] 找到 {token_file}")
         with open(token_file, 'rb') as token:
             creds = pickle.load(token)
         print(f"✅ 從 {token_file} 讀取 token")
+    else:
+        print(f"⚠️ [DEBUG] 找不到 {token_file}")
     
     # 如果沒有有效的憑證，需要重新登入
+    print(f"📍 [DEBUG] 檢查憑證有效性: creds={creds is not None}, valid={creds.valid if creds else 'N/A'}")
+    
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            print("⏳ [DEBUG] Token 已過期，嘗試更新...")
             try:
                 creds.refresh(Request())
                 print("✅ Token 已更新")
             except Exception as e:
-                print(f"⚠️ Token 更新失敗：{e}")
+                print(f"❌ Token 更新失敗：{e}")
                 creds = None
         
         if not creds:
+            print(f"📍 [DEBUG] 方法 3: 檢查 OAuth credentials.json ({credentials_file})")
             if not os.path.exists(credentials_file):
                 print(f"❌ 找不到 OAuth 憑證檔案：{credentials_file}")
-                print("請從 Google Cloud Console 下載 OAuth 2.0 憑證並命名為 credentials.json")
+                print("⚠️ 所有授權方式都失敗了！")
+                print("解決方案：")
+                print("  - Streamlit Cloud: 設定 Secrets 中的 oauth_token")
+                print("  - 本地: 執行 python google_drive_utils.py 進行授權")
+                print("="*60 + "\n")
                 return None
             
             try:
@@ -158,11 +199,15 @@ def get_drive_service(credentials_file: str = 'credentials.json', token_file: st
             pickle.dump(creds, token)
             print(f"✅ Token 已儲存到 {token_file}")
     
+    print("🎯 [DEBUG] 準備建立 Drive service...")
     try:
         service = build('drive', 'v3', credentials=creds)
+        print("✅ Google Drive service 建立成功！")
+        print("="*60 + "\n")
         return service
     except Exception as e:
         print(f"❌ 建立 Drive service 失敗：{e}")
+        print("="*60 + "\n")
         return None
 
 def upload_to_drive(service, file_path: Path, folder_id: Optional[str] = None, 

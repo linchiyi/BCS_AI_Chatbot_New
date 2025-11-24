@@ -85,7 +85,14 @@ context_engine = load_context_engine()
 # =========================================================
 # 📝 Session Logger 初始化
 # =========================================================
-DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "16HRRkutsZcscFkk4Q7XgJPEjbz3nurod")
+# DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "16HRRkutsZcscFkk4Q7XgJPEjbz3nurod")
+# LOGS_DIR = PROJECT_ROOT / "logs"
+# 優先從 Streamlit Secrets 讀取（Streamlit Cloud），否則從環境變數讀取（本地）
+try:
+    DRIVE_FOLDER_ID = st.secrets.get("DRIVE_FOLDER_ID", os.getenv("GOOGLE_DRIVE_FOLDER_ID", "16HRRkutsZcscFkk4Q7XgJPEjbz3nurod"))
+except:
+    DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "16HRRkutsZcscFkk4Q7XgJPEjbz3nurod")
+
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 @st.cache_resource(show_spinner=False)
