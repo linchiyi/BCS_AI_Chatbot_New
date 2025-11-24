@@ -1,0 +1,27 @@
+# Ignore .env files
+.env
+
+# Google Service Account credentials
+credentials.json
+token.pickle
+
+# Session logs
+logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

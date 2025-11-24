@@ -13,6 +13,7 @@ from openai import AuthenticationError, OpenAI
 import streamlit.components.v1 as components
 
 from patient_context_engine import PatientContextEngine
+from session_logger import SessionLogger
 
 try:
     import pandas as pd
@@ -80,6 +81,21 @@ def load_context_engine() -> PatientContextEngine:
 
 
 context_engine = load_context_engine()
+
+# =========================================================
+# 📝 Session Logger 初始化
+# =========================================================
+DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "16HRRkutsZcscFkk4Q7XgJPEjbz3nurod")
+LOGS_DIR = PROJECT_ROOT / "logs"
+
+@st.cache_resource(show_spinner=False)
+def get_session_logger() -> SessionLogger:
+    return SessionLogger(
+        logs_dir=LOGS_DIR,
+        drive_folder_id=DRIVE_FOLDER_ID
+    )
+
+session_logger = get_session_logger()
 
 # =========================================================
 # 3️⃣ 病人資料與情緒模式
@@ -896,7 +912,9 @@ with st.sidebar:
         st.session_state.pending_evaluation = False
         st.session_state.diagnosis_disclosed = False
         st.session_state.conversation_started_at = None
+        st.session_state.timer_frozen_at = None
         st.session_state.timeout_triggered = False
+        st.session_state.logged_this_session = False
         st.rerun()
 
     st.divider()
@@ -1094,6 +1112,36 @@ elif st.session_state.last_evaluation:
         mime="text/plain",
     )
 
+    # 自動記錄並上傳到 Google Drive
+    if "logged_this_session" not in st.session_state:
+        st.session_state.logged_this_session = False
+    
+    if not st.session_state.logged_this_session:
+        with st.spinner("正在儲存記錄並上傳到 Google Drive..."):
+            try:
+                result = session_logger.log_and_upload(
+                    messages=st.session_state.messages,
+                    evaluation=latest_eval,
+                    stage=st.session_state.stage,
+                    emotion_mode=st.session_state.emotion_mode,
+                    student_level=st.session_state.student_level,
+                    shair_feedback=shair_feedback,
+                    conversation_seconds=get_elapsed_seconds(st.session_state.conversation_started_at),
+                    diagnosis_disclosed=st.session_state.diagnosis_disclosed,
+                    combined_report_bytes=combined_bytes,
+                )
+                st.session_state.logged_this_session = True
+                
+                if result["local_path"]:
+                    st.success(f"✅ 記錄已儲存至後端")
+                if result["drive_file_id"]:
+                    st.success(f"✅ 記錄已上傳至 Google Drive")
+                if result["report_drive_id"]:
+                    st.success(f"✅ 評分報告已上傳至 Google Drive")
+                    
+            except Exception as exc:
+                st.warning(f"⚠️ 自動記錄/上傳時發生錯誤：{exc}")
+
     if score_rows:
         if st.session_state.admin_mode:
             if pd is not None:
@@ -1127,18 +1175,6 @@ elif st.session_state.last_evaluation:
         else:
             st.caption("詳細項目僅限管理員查看。")
 
-    # with st.expander("查看原始評分 JSON", expanded=False):
-    #     st.json(structured_eval)
-
-    # eval_download_data = json.dumps(
-    #     structured_eval, ensure_ascii=False, indent=2
-    # ).encode("utf-8")
-    # st.download_button(
-    #     "📊 下載評分 JSON",
-    #     data=eval_download_data,
-    #     file_name=f"對話評分_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-    #     mime="application/json",
-    # )
 
 # =========================================================
 # 1️⃣1️⃣ 對話互動
