@@ -39,28 +39,30 @@ class SessionLogger:
             self._init_drive_service()
     
     def _init_drive_service(self):
-        """初始化 Google Drive API service（使用 OAuth 2.0）"""
+        """
+        初始化 Google Drive API service
+        自動偵測並使用最適合的授權方式：
+        1. Streamlit Cloud: 使用 st.secrets 中的 OAuth token
+        2. 本地 (有 token.pickle): 使用已授權的 OAuth token
+        3. 本地 (僅有 credentials.json): 需要瀏覽器授權一次
+        """
         if not GOOGLE_DRIVE_AVAILABLE or not get_drive_service:
             print("⚠️ Google Drive 功能不可用")
             return
         
         try:
-            # 使用 OAuth 2.0（適合個人 Google Drive）
-            credentials_file = Path(__file__).parent / "credentials.json"
-            token_file = Path(__file__).parent / "token.pickle"
-            
-            if not credentials_file.exists():
-                print(f"⚠️ 找不到 credentials.json，Google Drive 上傳功能將無法使用")
-                print("   請從 Google Cloud Console 下載 OAuth 2.0 憑證")
-                return
-            
-            self.drive_service = get_drive_service(
-                credentials_file=str(credentials_file),
-                token_file=str(token_file)
-            )
+            # 直接呼叫 get_drive_service，它會自動偵測環境
+            # 並選擇最適合的授權方式（Secrets > token.pickle > credentials.json）
+            self.drive_service = get_drive_service()
             
             if self.drive_service:
                 print("✅ Google Drive service 初始化成功")
+            else:
+                print("⚠️ Google Drive service 初始化失敗")
+                print("   可能原因：")
+                print("   - Streamlit Cloud: 需要在 Settings > Secrets 設定 oauth_token")
+                print("   - 本地開發: 需要 token.pickle 或 credentials.json")
+                
         except Exception as e:
             print(f"⚠️ Google Drive service 初始化失敗：{e}")
             self.drive_service = None
