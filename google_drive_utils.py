@@ -1,9 +1,12 @@
 """
 Google Drive 工具模組
 支援 OAuth 2.0 使用者授權（個人 Google Drive）
+同時支援本地開發和 Streamlit Cloud 部署
 """
 import os
 import pickle
+import json
+import base64
 from pathlib import Path
 from typing import Optional
 
@@ -18,12 +21,75 @@ try:
 except ImportError:
     GOOGLE_DRIVE_AVAILABLE = False
 
+# 檢查是否在 Streamlit 環境
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except:
+    HAS_STREAMLIT = False
+
 # Google Drive API 權限範圍
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+def get_credentials_from_streamlit_secrets():
+    """
+    從 Streamlit Secrets 讀取 OAuth token
+    
+    Secrets 格式：
+    [oauth_token]
+    token = "xxx"
+    refresh_token = "xxx"
+    token_uri = "https://oauth2.googleapis.com/token"
+    client_id = "xxx"
+    client_secret = "xxx"
+    scopes = ["https://www.googleapis.com/auth/drive.file"]
+    
+    Returns:
+        Credentials 物件，如果失敗則返回 None
+    """
+    if not HAS_STREAMLIT:
+        return None
+    
+    try:
+        if 'oauth_token' not in st.secrets:
+            return None
+        
+        token_info = st.secrets['oauth_token']
+        
+        creds = Credentials(
+            token=token_info.get('token'),
+            refresh_token=token_info.get('refresh_token'),
+            token_uri=token_info.get('token_uri', 'https://oauth2.googleapis.com/token'),
+            client_id=token_info.get('client_id'),
+            client_secret=token_info.get('client_secret'),
+            scopes=token_info.get('scopes', SCOPES)
+        )
+        
+        # 如果 token 過期，嘗試更新
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                print("✅ Token 已從 Streamlit Secrets 讀取並更新")
+            except Exception as e:
+                print(f"⚠️ Token 更新失敗：{e}")
+                return None
+        else:
+            print("✅ Token 已從 Streamlit Secrets 讀取")
+        
+        return creds
+        
+    except Exception as e:
+        print(f"⚠️ 從 Streamlit Secrets 讀取 token 失敗：{e}")
+        return None
 
 def get_drive_service(credentials_file: str = 'credentials.json', token_file: str = 'token.pickle'):
     """
     初始化 Google Drive API service（使用 OAuth 2.0）
+    
+    優先順序：
+    1. Streamlit Cloud: 從 st.secrets['oauth_token'] 讀取
+    2. 本地: 從 token.pickle 讀取
+    3. 本地: 需要瀏覽器授權（第一次）
     
     Args:
         credentials_file: OAuth 2.0 憑證檔案路徑（從 GCP Console 下載）
@@ -38,10 +104,23 @@ def get_drive_service(credentials_file: str = 'credentials.json', token_file: st
     
     creds = None
     
-    # 檢查是否有已儲存的 token
+    # 方法 1: 從 Streamlit Secrets 讀取（Streamlit Cloud 環境）
+    if HAS_STREAMLIT:
+        creds = get_credentials_from_streamlit_secrets()
+        if creds:
+            try:
+                service = build('drive', 'v3', credentials=creds)
+                print("✅ 使用 Streamlit Secrets 中的 OAuth token")
+                return service
+            except Exception as e:
+                print(f"⚠️ 使用 Secrets token 建立 service 失敗：{e}")
+                creds = None
+    
+    # 方法 2: 從本地檔案讀取 token
     if os.path.exists(token_file):
         with open(token_file, 'rb') as token:
             creds = pickle.load(token)
+        print(f"✅ 從 {token_file} 讀取 token")
     
     # 如果沒有有效的憑證，需要重新登入
     if not creds or not creds.valid:
