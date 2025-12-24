@@ -37,7 +37,7 @@ st.set_page_config(
 # 環境與 OpenAI 初始化
 # =========================================================
 load_dotenv()
-API_KEY = os.getenv("OPENAI_API_KEY")
+# 改為「必須手動輸入」：不從環境變數帶入預設值，避免顯示或意外使用既有金鑰。
 MODEL_NAME = os.getenv("PATIENT_MODEL", "gpt-4.1")
 EMBEDDING_MODEL = os.getenv("PATIENT_EMBEDDING_MODEL", "text-embedding-3-large")
 EVALUATION_MODEL = os.getenv("PATIENT_EVALUATION_MODEL", "gpt-4.1")
@@ -76,6 +76,8 @@ if "selected_case" not in st.session_state:
     st.session_state.selected_case = None
 if "case_confirmed" not in st.session_state:
     st.session_state.case_confirmed = False
+if "openai_api_key" not in st.session_state:
+    st.session_state.openai_api_key = ""
 
 
 def reset_to_case_selection():
@@ -101,6 +103,19 @@ def reset_to_case_selection():
 if not st.session_state.case_confirmed:
     st.title("🏥 OSCE 醫病對話模擬器")
     st.markdown("---")
+
+    # 手動輸入 OpenAI API Key（必填）
+    st.subheader("🔑 請先輸入 OpenAI API Key")
+    st.session_state.openai_api_key = st.text_input(
+        "OpenAI API Key",
+        value=st.session_state.openai_api_key or "",
+        type="password",
+        help="為避免金鑰被寫入檔案，本 App 改為由使用者手動輸入後才啟用。",
+    ).strip()
+    has_api_key = bool(st.session_state.openai_api_key)
+    if not has_api_key:
+        st.info("尚未輸入 API Key：請先輸入後再選擇教案。")
+
     st.subheader("請選擇練習教案")
     st.markdown("每個教案有獨立的對話情境和評分標準。選擇後將進入對應的模擬對話。")
     st.markdown("")
@@ -123,6 +138,7 @@ if not st.session_state.case_confirmed:
                     key=f"select_{case_id}",
                     type="primary",
                     use_container_width=True,
+                    disabled=not has_api_key,
                 ):
                     st.session_state.selected_case = case_id
                     st.session_state.case_confirmed = True
@@ -136,9 +152,10 @@ if not st.session_state.case_confirmed:
 # 以下是選擇教案後的對話邏輯
 # =========================================================
 
-# 檢查 API Key
+# 檢查 API Key（改為手動輸入）
+API_KEY = (st.session_state.get("openai_api_key") or "").strip()
 if not API_KEY:
-    st.error("❌ 找不到 OPENAI_API_KEY。請建立 .env 並設定金鑰。")
+    st.error("❌ 尚未輸入 OpenAI API Key，請返回上一頁輸入後再使用。")
     st.stop()
 
 try:
