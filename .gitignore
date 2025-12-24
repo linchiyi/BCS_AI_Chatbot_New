@@ -1,6 +1,9 @@
 # Ignore .env files
 .env
 
+# Streamlit secrets (DO NOT COMMIT)
+.streamlit/secrets.toml
+
 # Google Service Account credentials
 credentials.json
 token.pickle

@@ -109,7 +109,7 @@ session_logger = get_session_logger()
 # =========================================================
 PATIENT_PERSONA = {
     "demographics": {
-        "name": "吳宗明",
+        "name": "吳忠明",
         "age": 55,
         "gender": "男性",
     },
@@ -721,7 +721,95 @@ def extract_score_highlights(score_rows: List[Dict[str, Any]]) -> Tuple[List[Dic
     return strengths, focus
 
 
-def build_shair_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List[Dict[str, Any]]) -> str:
+def build_spikes_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List[Dict[str, Any]], conversation_text: str) -> str:
+    """產生 SPIKES 模式回饋，約 500 字，根據實際對話內容給出具體建議。"""
+    def join_items(items: List[Dict[str, Any]]) -> str:
+        names = [item.get("項目") for item in items if item.get("項目")]
+        return "、".join(names) if names else "尚未顯著項目"
+
+    strength_text = join_items(strengths)
+    gap_text = join_items(gaps)
+
+    spikes_prompt = f"""
+你是一位具溝通教學經驗的 OSCE 主考官，熟悉困難溝通中的 SPIKES 模式：
+S = Setting（建立關係：環境準備、確認身分、建立信任）
+P = Perception（了解病人認知：詢問病人對病情的理解與預期）
+I = Invitation（取得病人同意：確認病人想知道多少資訊）
+K = Knowledge（說明病情：清楚、分段、避免專有名詞地傳遞壞消息）
+E = Empathy（同理心：回應病人情緒、給予支持與陪伴）
+S = Strategy and Summary（總結對話：討論後續計畫、確認理解、提供資源）
+
+請根據下列對話逐字稿與評分資訊，以 SPIKES 模型對醫學生提供約 400-500 字的中文回饋。
+
+要求：
+- 以醫學生為對象，語氣具體、鼓勵且有建設性。
+- 請仔細閱讀對話逐字稿，針對醫學生說過的具體句子給出回饋，例如引用醫學生說得好的句子加以肯定，或指出可以改進的具體用語。
+- 依序分成三大段輸出，每一段的開頭請明確標示：
+  「一、建立關係 (Setting)：」
+  「二、說明解釋 (Perception → Invitation → Knowledge → Empathy)：」
+  「三、總結對話 (Strategy and Summary)：」
+- 每一段內容約 3-5 句完整句子，可使用換行分開段落，但不要使用項目符號或條列清單符號。
+- 著重說明本次對話在各面向的優點與可改進處，並提供下次可以實作的 1-2 個具體建議。
+
+[情境階段]
+目前溝通階段：{stage}
+
+[亮點項目]
+{strength_text}
+
+[優先改善項目]
+{gap_text}
+
+[對話逐字稿]
+{conversation_text}
+""".strip()
+
+    try:
+        response = client.responses.create(
+            model=EVALUATION_MODEL,
+            input=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "你是臨床溝通技巧教師，熟悉 SPIKES 模型與 OSCE 評量。",
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": spikes_prompt}],
+                },
+            ],
+            temperature=0.4,
+        )
+
+        collected_text: list[str] = []
+        output_items = getattr(response, "output", [])
+        for item in output_items:
+            for content in getattr(item, "content", []):
+                if getattr(content, "type", "") in {"output_text", "text"}:
+                    collected_text.append(getattr(content, "text", ""))
+
+        if not collected_text and hasattr(response, "output_text"):
+            collected_text.append(response.output_text)
+
+        text = "\n".join(part for part in collected_text if part).strip()
+        if text:
+            return text
+    except Exception:
+        pass
+
+    # 若生成失敗，退回到簡短版本
+    return (
+        f"一、建立關係 (Setting)：目前對話處於「{stage}」階段，你在開場時有嘗試確認病人身分並建立初步信任關係。建議在說明重要訊息前，先確認環境隱私、詢問是否有家人陪同，並給予病人足夠的心理準備時間。\n\n"
+        f"二、說明解釋 (Perception → Invitation → Knowledge → Empathy)：在 {strength_text} 方面表現良好，顯示你有注意傾聽病人的擔憂。針對 {gap_text}，建議先了解病人對病情的認知程度，再逐步說明壞消息，避免一次給予過多資訊。當病人表達情緒時，可適時停頓、表達同理，讓病人感受到被理解與支持。\n\n"
+        f"三、總結對話 (Strategy and Summary)：在對話結束前，建議簡要回顧今天討論的重點，確認病人理解程度，並說明下一步檢查或治療安排。可詢問病人是否還有其他疑問，並告知隨時可以聯繫醫療團隊，讓病人帶著具體方向與支持感離開。"
+    )
+
+
+def build_shair_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List[Dict[str, Any]], conversation_text: str) -> str:
     def join_items(items: List[Dict[str, Any]]) -> str:
         names = [item.get("項目") for item in items if item.get("項目")]
         return "、".join(names) if names else "尚未顯著項目"
@@ -738,10 +826,11 @@ A = Additional information（補充適量且清楚的醫療資訊）
 I = Individualize（依病人家庭、身分、價值觀調整說明方式）
 R = Reassure and plan（安撫情緒並共同擬定後續計畫）
 
-請根據下列資訊，以 SHAIR 模型對醫學生提供約 400-500 字的中文回饋。
+請根據下列對話逐字稿與評分資訊，以 SHAIR 模型對醫學生提供約 400-500 字的中文回饋。
 
 要求：
 - 以醫學生為對象，語氣具體、鼓勵且有建設性。
+- 請仔細閱讀對話逐字稿，針對醫學生說過的具體句子給出回饋，例如引用醫學生說得好的句子加以肯定，或指出可以改進的具體用語。
 - 依序分成五小段輸出，每一段的開頭請明確以「S (Supportive environment)：」「H (How to deliver)：」「A (Additional information)：」「I (Individualize)：」「R (Reassure and plan)：」標示，後面接上中文說明。
 - 每一段內容約 2-4 句完整句子，可使用換行分開段落，但不要使用項目符號或條列清單符號。
 - 著重說明本次對話在各面向的優點與可改進處，並提供下次可以實作的 1-2 個具體建議。
@@ -754,6 +843,9 @@ R = Reassure and plan（安撫情緒並共同擬定後續計畫）
 
 [優先改善項目]
 {gap_text}
+
+[對話逐字稿]
+{conversation_text}
 """.strip()
 
     try:
@@ -810,6 +902,7 @@ def build_combined_report(
     emotion_mode: str,
     strengths: List[Dict[str, Any]],
     gaps: List[Dict[str, Any]],
+    spikes_feedback: str,
     shair_feedback: str,
 ) -> bytes:
     buffer = io.StringIO()
@@ -830,26 +923,49 @@ def build_combined_report(
         structured = evaluation.get("structured", {})
         overall = structured.get("overall_performance", {}) or {}
         buffer.write("=== 評分摘要 ===\n")
-        buffer.write(f"總分：{overall.get('total_score', 'N/A')}\n")
+        buffer.write(f"項目評分總分：{overall.get('total_score', 'N/A')}\n")
         rating_5 = overall.get("rating_1_to_5", {}) or {}
-        rating_3 = overall.get("rating_1_to_3", {}) or {}
-        buffer.write(f"1-5 級整體評分：{rating_5.get('score', 'N/A')}\n")
-        buffer.write(f"1-3 級整體評分：{rating_3.get('score', 'N/A')}\n")
+        
+        # 處理 1-5 級分顯示
+        r5_score = rating_5.get("score")
+        r5_text = "N/A"
+        if r5_score is not None:
+            try:
+                s = int(r5_score)
+                mapping = {1: "差", 2: "待加強", 3: "普通", 4: "良好", 5: "優秀"}
+                r5_text = f"{s} {mapping.get(s, '')}".strip()
+            except:
+                r5_text = str(r5_score)
+
+        buffer.write(f"1-5 級整體表現：{r5_text}\n")
         buffer.write(f"重點回饋：{structured.get('brief_feedback', '')}\n\n")
+
+        def _clean_name(n):
+            if "." in n:
+                parts = n.split(".", 1)
+                if parts[0].strip().isdigit():
+                    return parts[1].strip()
+            return n
 
         buffer.write("=== 亮點項目 ===\n")
         if strengths:
             for item in strengths:
-                buffer.write(f"- {item.get('項目')}: {item.get('說明')} (得分 {item.get('得分')})\n")
+                name = _clean_name(item.get('項目', ''))
+                buffer.write(f"- {name}\n")
         else:
             buffer.write("- 尚未顯著亮點\n")
 
         buffer.write("\n=== 待加強項目 ===\n")
         if gaps:
             for item in gaps:
-                buffer.write(f"- {item.get('項目')}: {item.get('說明')} (得分 {item.get('得分')})\n")
+                name = _clean_name(item.get('項目', ''))
+                buffer.write(f"- {name}\n")
         else:
             buffer.write("- 無明顯低分項目\n")
+
+        buffer.write("\n=== SPIKES 回饋 ===\n")
+        buffer.write(spikes_feedback)
+        buffer.write("\n")
 
         buffer.write("\n=== SHAIR 回饋 ===\n")
         buffer.write(shair_feedback)
@@ -906,7 +1022,7 @@ with st.sidebar:
         st.session_state.timeout_triggered = False
 
     auto_download = st.checkbox(
-        "時間到自動產生評分提醒",
+        "時間到自動產生評分",
         value=st.session_state.auto_download_on_timeout,
     )
     st.session_state.auto_download_on_timeout = auto_download
@@ -1046,18 +1162,24 @@ elif st.session_state.last_evaluation:
 
     st.success(f"✅ 已於 {latest_eval['timestamp']} 完成評分與回饋。")
 
-    col_total, col_rating5, col_rating3 = st.columns(3)
+    col_total, col_rating5 = st.columns(2)
     total_score = overall.get("total_score")
-    col_total.metric("總分", total_score if total_score is not None else "N/A")
+    col_total.metric("項目評分總分", total_score if total_score is not None else "N/A")
+    
+    r5_score = rating_1_to_5.get("score")
+    r5_display = "N/A"
+    if r5_score is not None:
+        try:
+            s = int(r5_score)
+            mapping = {1: "差", 2: "待加強", 3: "普通", 4: "良好", 5: "優秀"}
+            r5_display = f"{s} {mapping.get(s, '')}".strip()
+        except:
+            r5_display = str(r5_score)
+
     col_rating5.metric(
-        "1-5 級整體評分",
-        rating_1_to_5.get("score", "N/A"),
+        "1-5 級整體表現",
+        r5_display,
         help=rating_1_to_5.get("description", ""),
-    )
-    col_rating3.metric(
-        "1-3 級整體評分",
-        rating_1_to_3.get("score", "N/A"),
-        help=rating_1_to_3.get("description", ""),
     )
 
     brief_feedback = structured_eval.get("brief_feedback")
@@ -1083,21 +1205,34 @@ elif st.session_state.last_evaluation:
         )
 
     strengths, gaps = extract_score_highlights(score_rows)
-    shair_feedback = build_shair_feedback(st.session_state.stage, strengths, gaps)
+    # 產生對話逐字稿供回饋函式使用
+    conversation_text = _format_conversation_for_model(st.session_state.messages)
+    spikes_feedback = build_spikes_feedback(st.session_state.stage, strengths, gaps, conversation_text)
+    shair_feedback = build_shair_feedback(st.session_state.stage, strengths, gaps, conversation_text)
+
+    def _clean_name(n):
+        if "." in n:
+            parts = n.split(".", 1)
+            if parts[0].strip().isdigit():
+                return parts[1].strip()
+        return n
 
     if strengths:
         st.markdown(
-            "**亮點項目**：" + "、".join(row["項目"] for row in strengths if row.get("項目"))
+            "**亮點項目**：" + "、".join(_clean_name(row["項目"]) for row in strengths if row.get("項目"))
         )
     else:
         st.markdown("**亮點項目**：尚未顯著亮點")
 
     if gaps:
         st.markdown(
-            "**優先改善**：" + "、".join(row["項目"] for row in gaps if row.get("項目"))
+            "**優先改善**：" + "、".join(_clean_name(row["項目"]) for row in gaps if row.get("項目"))
         )
     else:
         st.markdown("**優先改善**：無明顯低分項目")
+
+    st.markdown("**SPIKES 回饋**：")
+    st.write(spikes_feedback)
 
     st.markdown("**SHAIR 回饋**：")
     st.write(shair_feedback)
@@ -1109,6 +1244,7 @@ elif st.session_state.last_evaluation:
         st.session_state.emotion_mode,
         strengths,
         gaps,
+        spikes_feedback,
         shair_feedback,
     )
 
@@ -1139,10 +1275,12 @@ elif st.session_state.last_evaluation:
                 )
                 st.session_state.logged_this_session = True
                 
-                if result["local_path"]:
-                    st.success(f"✅ 記錄已儲存至後端")
+                # if result["local_path"]:
+                #     st.success(f"✅ 記錄已儲存至後端")
                 if result["drive_file_id"]:
                     st.success(f"✅ 記錄已上傳至 Google Drive")
+                else:
+                    st.warning(f"⚠️ 記錄上傳至 Google Drive 失敗：{result.get('error_message', '未知錯誤')}")
                 if result["report_drive_id"]:
                     st.success(f"✅ 評分報告已上傳至 Google Drive")
                     

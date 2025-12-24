@@ -90,6 +90,8 @@ class SessionLogger:
         shair_feedback: str,
         conversation_seconds: int,
         diagnosis_disclosed: bool,
+        case_id: str = "",
+        case_name: str = "",
     ) -> Optional[Path]:
         """
         記錄一個完整的對話 session 到本地 JSON 檔案
@@ -99,11 +101,21 @@ class SessionLogger:
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = self.logs_dir / f"session_{timestamp}.json"
+            
+            # 根據教案產生檔名前綴
+            case_prefix = ""
+            if case_id == "npc":
+                case_prefix = "鼻咽癌_"
+            elif case_id == "abdominal_pain":
+                case_prefix = "腹痛_"
+            
+            filename = self.logs_dir / f"{case_prefix}session_{timestamp}.json"
             
             payload = {
                 "timestamp": timestamp,
                 "datetime": datetime.now().isoformat(),
+                "case_id": case_id,
+                "case_name": case_name,
                 "student_level": student_level,
                 "emotion_mode": emotion_mode,
                 "stage": stage,
@@ -170,9 +182,15 @@ class SessionLogger:
         conversation_seconds: int,
         diagnosis_disclosed: bool,
         combined_report_bytes: bytes,
+        case_id: str = "",
+        case_name: str = "",
     ) -> Dict[str, Any]:
         """
         記錄 session 並上傳到 Google Drive
+        
+        Args:
+            case_id: 教案識別碼（如 'npc', 'abdominal_pain'）
+            case_name: 教案名稱（如 '鼻咽癌 - 病情告知'）
         
         Returns:
             包含 local_path, drive_file_id, report_drive_id 的字典
@@ -181,7 +199,15 @@ class SessionLogger:
             "local_path": None,
             "drive_file_id": None,
             "report_drive_id": None,
+            "error_message": None,
         }
+        
+        # 根據教案產生檔名前綴
+        case_prefix = ""
+        if case_id == "npc":
+            case_prefix = "鼻咽癌_"
+        elif case_id == "abdominal_pain":
+            case_prefix = "腹痛_"
         
         # 1. 儲存本地 JSON log
         local_path = self.log_session(
@@ -193,6 +219,8 @@ class SessionLogger:
             shair_feedback=shair_feedback,
             conversation_seconds=conversation_seconds,
             diagnosis_disclosed=diagnosis_disclosed,
+            case_id=case_id,
+            case_name=case_name,
         )
         result["local_path"] = str(local_path) if local_path else None
         
@@ -205,7 +233,7 @@ class SessionLogger:
         if combined_report_bytes:
             try:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                report_filename = self.logs_dir / f"report_{timestamp}.txt"
+                report_filename = self.logs_dir / f"{case_prefix}report_{timestamp}.txt"
                 report_filename.write_bytes(combined_report_bytes)
                 
                 if self.drive_service:
@@ -214,5 +242,6 @@ class SessionLogger:
                     
             except Exception as exc:
                 print(f"⚠️ 儲存或上傳 combined report 失敗：{exc}")
+                result["error_message"] = str(exc)
         
         return result
