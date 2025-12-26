@@ -249,10 +249,19 @@ else:
 # =========================================================
 # Session Logger 初始化
 # =========================================================
+# 預設 Drive 資料夾（若 Cloud Secrets/環境變數未提供，至少不會完全停用上傳）
+DEFAULT_DRIVE_FOLDER_ID = "16HRRkutsZcscFkk4Q7XgJPEjbz3nurod"
+
 try:
-    DRIVE_FOLDER_ID = st.secrets.get("DRIVE_FOLDER_ID", os.getenv("GOOGLE_DRIVE_FOLDER_ID", ""))
+    DRIVE_FOLDER_ID = st.secrets.get(
+        "DRIVE_FOLDER_ID",
+        os.getenv("GOOGLE_DRIVE_FOLDER_ID", DEFAULT_DRIVE_FOLDER_ID),
+    )
 except:
-    DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+    DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", DEFAULT_DRIVE_FOLDER_ID)
+
+if not DRIVE_FOLDER_ID:
+    st.warning("⚠️ 未設定 Google Drive 資料夾 ID（DRIVE_FOLDER_ID / GOOGLE_DRIVE_FOLDER_ID），將無法自動上傳。")
 
 LOGS_DIR = PROJECT_ROOT / "logs"
 
