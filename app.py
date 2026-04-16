@@ -80,7 +80,7 @@ CASE_OPTIONS = {
 # 要重新啟用時只要把該 id 從 set 中移除即可
 # 重新開放腹痛教案 → 把 "abdominal_pain" 從 set 裡移除，改成 DISABLED_CASES = set() , 改成只留腹痛 → 改成 DISABLED_CASES = {"npc"}
 # =========================================================
-DISABLED_CASES = {"abdominal_pain"}   # ← 目前關閉腹痛教案；全開請改成 set()
+DISABLED_CASES = set()   # ← 目前關閉腹痛教案；全開請改成 set()
 
 # =========================================================
 # Session State 初始化
