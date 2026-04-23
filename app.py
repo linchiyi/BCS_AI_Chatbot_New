@@ -48,6 +48,7 @@ EMBEDDING_MODEL = os.getenv("PATIENT_EMBEDDING_MODEL", "text-embedding-3-large")
 EVALUATION_MODEL = os.getenv("PATIENT_EVALUATION_MODEL", "gpt-4.1")
 ADMIN_ACCESS_CODE = os.getenv("CHATBOT_ADMIN_CODE", "")
 
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 TZ = ZoneInfo("Asia/Taipei")
 
@@ -735,7 +736,7 @@ def get_emotion_visual_config() -> Dict[str, Dict]:
             "color_opacity": [0.2, 0.4, 0.6, 0.8, 1.0],
         },
         # ========== 腹痛教案情緒（完整對應 case_abdominal_pain.py）==========
-        "焦慮擔心": {
+        "焦慮擔心型": {
             "base_color": "#FF8C00",
             "emoji_levels": ["😟", "😟", "😰", "😰", "😱"],
             "intensity_desc": {
@@ -747,7 +748,7 @@ def get_emotion_visual_config() -> Dict[str, Dict]:
             },
             "color_opacity": [0.2, 0.4, 0.6, 0.8, 1.0],
         },
-        "自責崩潰": {
+        "自責崩潰型": {
             "base_color": "#8B0000",  # 深紅色系
             "emoji_levels": ["😔", "😢", "😢", "😭", "😭"],
             "intensity_desc": {
@@ -759,7 +760,7 @@ def get_emotion_visual_config() -> Dict[str, Dict]:
             },
             "color_opacity": [0.2, 0.4, 0.6, 0.8, 1.0],
         },
-        "憤怒質疑": {
+        "憤怒質疑型": {
             "base_color": "#DC143C",
             "emoji_levels": ["😒", "😤", "😤", "😠", "😡"],
             "intensity_desc": {
@@ -771,7 +772,7 @@ def get_emotion_visual_config() -> Dict[str, Dict]:
             },
             "color_opacity": [0.2, 0.4, 0.6, 0.8, 1.0],
         },
-        "堅持轉院": {
+        "堅持轉院型": {
             "base_color": "#FF6347",  # 番茄紅
             "emoji_levels": ["🤔", "😤", "😤", "😠", "😠"],
             "intensity_desc": {
@@ -783,7 +784,7 @@ def get_emotion_visual_config() -> Dict[str, Dict]:
             },
             "color_opacity": [0.2, 0.4, 0.6, 0.8, 1.0],
         },
-        "冷靜配合": {
+        "冷靜求解型": {
             "base_color": "#4169E1",
             "emoji_levels": ["😐", "🙂", "🙂", "😊", "😊"],
             "intensity_desc": {
