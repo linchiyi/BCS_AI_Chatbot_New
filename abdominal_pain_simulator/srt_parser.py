@@ -74,7 +74,11 @@ def load_all_cues(transcripts_dir: Path) -> List[tuple[str, SrtCue]]:
     items: list[tuple[str, SrtCue]] = []
     for path in iter_transcript_files(transcripts_dir):
         transcript_id = path.stem
-        raw = path.read_text(encoding="utf-8", errors="ignore")
-        for cue in parse_srt_like_text(raw):
-            items.append((transcript_id, cue))
+        try:
+            raw = path.read_text(encoding="utf-8", errors="ignore")
+            for cue in parse_srt_like_text(raw):
+                items.append((transcript_id, cue))
+        except OSError as e:
+            print(f"Warning: Could not read {path}: {e}")
+            continue
     return items

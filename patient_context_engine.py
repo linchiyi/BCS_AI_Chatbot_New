@@ -223,7 +223,11 @@ class PatientContextEngine:
     # ------------------------------------------------------------------
 
     def _parse_script_file(self, path: Path) -> List[DialogueSegment]:
-        text = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as e:
+            print(f"Warning: Could not read script {path}: {e}")
+            return []
         segments: List[DialogueSegment] = []
         current_stage = self.STAGE_ORDER[0]
         current_level: Optional[int] = None
@@ -285,7 +289,11 @@ class PatientContextEngine:
 
         samples: List[str] = []
         for path in sorted(self._transcripts_dir.glob("*.txt"))[: self._transcript_limit]:
-            raw_text = path.read_text(encoding="utf-8").strip()
+            try:
+                raw_text = path.read_text(encoding="utf-8").strip()
+            except OSError as e:
+                print(f"Warning: Could not read transcript {path}: {e}")
+                continue
             if not raw_text:
                 continue
             collapsed = re.sub(r"\s+", " ", raw_text)

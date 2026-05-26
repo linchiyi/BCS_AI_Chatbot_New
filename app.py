@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import streamlit as st
-import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from openai import AuthenticationError, OpenAI
 
@@ -46,6 +45,7 @@ SERVER_API_KEY = os.getenv("OPENAI_API_KEY", "")
 MODEL_NAME = os.getenv("PATIENT_MODEL", "gpt-4.1")
 EMBEDDING_MODEL = os.getenv("PATIENT_EMBEDDING_MODEL", "text-embedding-3-large")
 EVALUATION_MODEL = os.getenv("PATIENT_EVALUATION_MODEL", "gpt-4.1")
+REALTIME_MODEL = os.getenv("PATIENT_REALTIME_MODEL", "gpt-realtime-2")
 ADMIN_ACCESS_CODE = os.getenv("CHATBOT_ADMIN_CODE", "")
 
 
@@ -86,6 +86,232 @@ DISABLED_CASES = set()
 # =========================================================
 # Session State 初始化
 # =========================================================
+
+# =========================================================
+# i18n
+# =========================================================
+if "ui_language" not in st.session_state:
+    st.session_state.ui_language = "中文"
+
+EN_DICT = {
+    "🏥 OSCE 醫病對話模擬器": "🏥 OSCE Medical Conversation Simulator",
+    "選擇登入方式": "Select Login Method",
+    "密碼": "Password",
+    "登入": "Login",
+    "登出": "Logout",
+    "使用此 API Key": "Use this API Key",
+    "已啟用 API Key 模式": "API Key mode enabled",
+    "請輸入有效的 API Key": "Please enter a valid API Key",
+    "伺服端未設定 OPENAI_API_KEY，無法使用 Email 登入。請改用 API Key 模式。": "SERVER_API_KEY not set. Cannot use Email login. Please use API Key mode.",
+    "請輸入 Email 與密碼": "Please enter Email and Password",
+    "帳號或密碼錯誤": "Invalid account or password",
+    "👤 使用者資訊": "👤 User Information",
+    "使用者身分": "User Role",
+    "醫學生": "Medical Student",
+    "臨床教師": "Clinical Teacher",
+    "測試者": "Tester",
+    "其他": "Other",
+    "組別": "Group",
+    "序號": "Serial No.",
+    "請選擇練習教案": "Please Select a Practice Case",
+    "每個教案有獨立的對話情境和評分標準。選擇後將進入對應的模擬對話。": "Each case has an independent scenario and scoring criteria. Select one to start the simulation.",
+    "選擇此教案": "Select this case",
+    "🔙 返回教案選擇": "🔙 Back to Case Selection",
+    "當前教案": "Current Case",
+    "📘 考生指引摘錄": "📘 Examinee Guidelines",
+    "🧾 病理報告摘要": "🧾 Pathology Report Summary",
+    "📘 情境說明": "📘 Scenario Description",
+    "🧾 抽血檢驗報告": "🧾 Blood Test Report",
+    "🖼️ CT 影像": "🖼️ CT Images",
+    "🧾 衛教重點": "🧾 Health Education Focus",
+    "🎛️ 對話模式": "🎛️ Conversation Mode",
+    "選擇對話模式": "Select Conversation Mode",
+    "💬 文字模式": "💬 Text",
+    "🎙️ 語音輸入": "🎙️ Voice Input",
+    "🎤 即時語音": "🎤 Real-time Voice",
+    "AI 語音": "AI Voice",
+    "⚙️ 功能選單": "⚙️ Options",
+    "情緒模式": "Emotion Mode",
+    "醫學生等級（影響提示語料）": "Student Level",
+    "目前溝通階段：": "Current Stage: ",
+    "對話時間限制（分鐘，0 表示無）": "Time Limit (mins, 0=unlimited)",
+    "時間到自動產生評分": "Auto-generate feedback on timeout",
+    "🔄 重新開始對話": "🔄 Restart Conversation",
+    "🧮 產生評分回饋": "🧮 Generate Feedback",
+    "啟用管理員模式": "Enable Admin Mode",
+    "管理員代碼": "Admin Code",
+    "查看完整項目明細": "View Full Details",
+    "📥 下載評分明細 (CSV)": "📥 Download Details (CSV)",
+    "📥 下載對話及評分回饋": "📥 Download Report",
+    "請輸入您的問診內容...": "Type your message...",
+    "思考回覆中...": "Thinking...",
+    "項目評分總分": "Item Total Score",
+    "1-5 級整體表現": "1-5 Overall Rating",
+    "重點回饋": "Brief Feedback",
+    "回饋": "Feedback",
+    "亮點項目": "Strengths",
+    "優先改善": "Priority Improvements",
+    "尚未顯著亮點": "No obvious strengths yet",
+    "無明顯低分項目": "No obvious improvements needed",
+    "STEPS 回饋": "STEPS Feedback",
+    "SPIKES 回饋": "SPIKES Feedback",
+    "SHAIR 回饋": "SHAIR Feedback",
+    "評分與回饋產生中...": "Generating feedback...",
+    "正在儲存記錄並上傳到 Google Drive...": "Saving and uploading to Google Drive...",
+    "✅ 記錄已上傳至 Google Drive": "✅ Log uploaded to Google Drive",
+    "詳細項目僅限管理員查看。": "Detailed items are only visible to admins.",
+    "項目": "Item",
+    "得分": "Score",
+    "說明": "Detail",
+    "評分理由": "Rationale",
+    "對話經過時間": "Elapsed Time",
+    "尚未開始": "Not Started",
+    "時間已到": "Time's Up",
+    "不限時": "No Limit",
+    "對話總時長": "Total Duration",
+    "對話概覽": "Encounter Overview",
+    "教案": "Case",
+    "對話逐字稿": "Conversation Transcript",
+    "評分摘要": "Score Summary",
+    "待加強項目": "Priority Improvements",
+    "✅ 語音對話已結束": "✅ Voice conversation ended",
+    "📜 查看對話逐字稿": "📜 View Transcript",
+    "🔄 重新開始語音對話": "🔄 Restart Voice Conversation",
+    "📥 讀取": "📥 Read",
+    "📋 貼上對話記錄": "📋 Paste Conversation Log",
+    "對話記錄 (JSON)": "Conversation Log (JSON)",
+    "輸入訊息": "Type your message",
+    "✅ 送出訊息": "✅ Send Message",
+    "🎙️ 開始錄音": "🎙️ Start Recording",
+    "⏹️ 停止錄音": "⏹️ Stop Recording",
+    "🗑️ 清除": "🗑️ Clear",
+    "📋 複製文字": "📋 Copy Text",
+    "角色：": "Role: ",
+    "病人：": "Patient: ",
+    "場景：": "Scenario: ",
+    "鼻咽癌 - 病情告知": "NPC - Breaking Bad News",
+    "腹痛 - 家屬溝通": "Abdominal Pain - Family Comm.",
+    "病人": "Patient",
+    "家屬（長女）": "Family (Daughter)",
+    "家屬": "Family",
+    "極度震驚否認型": "Extremely Shocked/Denial",
+    "恐懼擔憂型": "Fearful/Worried",
+    "冷靜理性型": "Calm/Rational",
+    "悲傷沮喪型": "Sad/Depressed",
+    "憤怒質疑型": "Angry/Questioning",
+    "接受配合型": "Accepting/Cooperative",
+    "焦慮擔心型": "Anxious/Worried",
+    "自責崩潰型": "Self-blaming/Breakdown",
+    "堅持轉院型": "Insisting on Transfer",
+    "冷靜求解型": "Calm/Seeking Solutions",
+    "門診": "Outpatient",
+    "急診": "Emergency",
+    "吳忠明": "Wu Zhong-Ming",
+    "陳志華": "Chen Zhi-Hua",
+    "已於": "Completed at",
+    "完成評分與回饋。": "scoring and feedback.",
+    "情緒狀態：": "Emotion State: ",
+    "情緒狀態": "Emotion State",
+    "強度：": "Intensity: ",
+    "情緒穩定": "Emotionally stable",
+    "平靜/觀望，日常寒暄": "Calm/Observing, daily greeting",
+    "感受壞消息暗示，開始追問": "Sensing bad news, starting to ask",
+    "確認壞消息，開始質疑": "Confirming bad news, starting to question",
+    "語無倫次，拒絕接受": "Incoherent, refusing to accept",
+    "完全崩潰，大聲否認": "Complete breakdown, loudly denying",
+    "輕微緊張，等待報告": "Slightly nervous, waiting for report",
+    "感受暗示，開始追問": "Sensing hint, starting to ask",
+    "確認壞消息，焦慮明顯": "Confirming bad news, obvious anxiety",
+    "反覆詢問存活率、擔心家人": "Repeatedly asking survival rate, worrying about family",
+    "恐慌發作，難以冷靜": "Panic attack, hard to calm down",
+    "日常問答，配合對話": "Daily QA, cooperative in conversation",
+    "開始詢問治療細節": "Starting to ask treatment details",
+    "理性分析選項、費用": "Rationally analyzing options, cost",
+    "壓抑情緒，條理清晰": "Suppressing emotions, clear logic",
+    "過度理性，壓抑感受": "Overly rational, suppressing feelings",
+    "輕微失落，語氣低落": "Slightly disappointed, low tone",
+    "明顯難過，沉默寡言": "Obviously sad, taciturn",
+    "確認壞消息，悲傷明顯": "Confirming bad news, obvious sadness",
+    "聲音哽咽，無力自責": "Choking voice, weak and self-blaming",
+    "崩潰哭泣，覺得絕望": "Breaking down crying, feeling hopeless",
+    "輕微不滿，開始質疑": "Slightly dissatisfied, starting to question",
+    "明顯不耐，懷疑檢查": "Obviously impatient, doubting tests",
+    "態度強硬，要求解釋": "Tough attitude, demanding explanation",
+    "語氣尖銳，指責醫療": "Sharp tone, blaming medical team",
+    "激烈抗議，大聲質問": "Fierce protest, loudly questioning",
+    "被動接受，聽從安排": "Passively accepting, following arrangements",
+    "開始配合，願意聽取": "Starting to cooperate, willing to listen",
+    "主動詢問，積極面對": "Actively asking, facing positively",
+    "態度正向，準備治療": "Positive attitude, preparing for treatment",
+    "完全接受，全力配合": "Fully accepting, fully cooperating",
+    "平靜配合，日常問答": "Calm and cooperative, daily QA",
+    "開始擔心，追問細節": "Starting to worry, asking details",
+    "情緒波動，難以專注": "Emotional fluctuation, hard to focus",
+    "語調急促，反覆確認": "Rapid tone, repeatedly confirming",
+    "極度恐慌，需要冷靜": "Extreme panic, needing to calm down",
+    "輕微自責，語氣低落": "Slightly self-blaming, low tone",
+    "明顯自責，反覆道歉": "Obviously self-blaming, repeatedly apologizing",
+    "深度自責，聲音哽咽": "Deeply self-blaming, choking voice",
+    "情緒激動，崩潰哭泣": "Emotional, breaking down crying",
+    "完全崩潰，無法自拔": "Complete breakdown, unable to extricate",
+    "輕微不滿，偶爾質疑": "Slightly dissatisfied, occasionally questioning",
+    "明顯不耐，態度懷疑": "Obviously impatient, doubting attitude",
+    "強烈質疑，要求解釋": "Strongly questioning, demanding explanation",
+    "語氣尖銳，可能打斷": "Sharp tone, might interrupt",
+    "激烈抗議，拒絕接受": "Fierce protest, refusing to accept",
+    "日常問答，尚未提轉院": "Daily QA, haven't mentioned transfer",
+    "開始考慮，提出疑慮": "Starting to consider, raising doubts",
+    "明確傾向，表達想法": "Clear inclination, expressing thoughts",
+    "強烈堅持，難以說服": "Strongly insisting, hard to persuade",
+    "完全拒絕留院，威脅離開": "Completely refusing to stay, threatening to leave",
+    "理解說明，基本配合": "Understanding explanation, basically cooperative",
+    "主動詢問，願意了解": "Actively asking, willing to understand",
+    "積極配合，信任醫師": "Actively cooperating, trusting doctor",
+    "完全信任，全力配合": "Fully trusting, fully cooperating",
+    "剩餘約": "Remaining approx.",
+    "分": "mins",
+    "55 歲男性病人吳忠明，回診確認鼻咽癌病理報告。練習告知壞消息與情緒處理。": "55-year-old male Wu Zhong-Ming, returning to confirm report after endoscopic nasopharyngeal biopsy. Practice breaking bad news and handling emotions.",
+    "75 歲男性病人陳志華，腹膜透析患者因腹痛送急診。與家屬（長女）溝通病情與治療選項。": "75 y/o male Chen Zhi-Hua, diabetic end-stage renal disease, PD for ~2 years. Discuss condition and treatment options with daughter.",
+    "男性": "Male",
+    "持續鼻塞": "Persistent nasal congestion",
+    "有痰": "Sputum",
+    "痰中有血絲": "Blood-tinged sputum",
+    "叔父58歲因鼻咽癌過世": "Uncle passed away from nasopharyngeal carcinoma at 58",
+    "建立關係": "Building Relationship",
+    "說明解釋": "Explanation and Discussion",
+    "總結對話": "Strategy and Summary",
+    "衛教與總結": "Education and Summary",
+    "Patient Info": "Patient Info",
+    "Chief Complaint": "Chief Complaint",
+    "Family History": "Family History",
+    "教案：": "Case: ",
+    "病人極度震驚，強烈否認診斷，情緒激動": "The patient is extremely shocked, strongly denies the diagnosis, and is emotionally agitated",
+    "病人接受診斷但極度恐懼，聚焦預後與家人": "Patient accepts diagnosis but is extremely terrified, focusing on prognosis and family",
+    "病人努力保持冷靜，理性思考治療計畫": "Patient tries to stay calm, rationally thinking about treatment plan",
+    "病人極度悲傷，覺得人生失去希望": "Patient is extremely sad, feeling life has lost hope",
+    "病人憤怒質疑醫療體系與檢查結果": "Patient angrily questions medical system and test results",
+    "病人接受事實，準備積極面對治療": "Patient accepts facts, ready to actively face treatment",
+    "擔心爸爸病況、反覆確認風險": "Worried about dad's condition, repeatedly confirming risks",
+    "覺得自己太晚送醫、情緒潰堤": "Feels she brought him in too late, emotional breakdown",
+    "質疑醫療、語氣強硬": "Questioning medical care, tough tone",
+    "努力冷靜，想了解處置與下一步": "Trying to stay calm, wants to know treatment and next steps",
+    "很想轉院，怕這裡處理不好": "Really wants to transfer, afraid it won't be handled well here",
+    "陳志華": "Chen Zhi-Hua",
+    "長女": "Eldest Daughter",
+    "主要照顧者": "Primary Caregiver",
+    "糖尿病導致末期腎臟病": "Diabetic end-stage renal disease",
+    "腹膜透析約兩年": "Peritoneal dialysis for ~2 years",
+    "腹痛 8 小時": "Abdominal pain x 8 hrs",
+    "發燒": "Fever",
+    "血壓低": "Low blood pressure",
+}
+
+def _t(text):
+    if not isinstance(text, str): return text
+    if st.session_state.get("ui_language") == "English":
+        return EN_DICT.get(text, text)
+    return text
+
 if "selected_case" not in st.session_state:
     st.session_state.selected_case = None
 if "case_confirmed" not in st.session_state:
@@ -140,6 +366,7 @@ def reset_to_case_selection():
     keys_to_clear = [
         "messages", "emotion_mode", "stage", "student_level",
         "last_evaluation", "last_evaluation_error", "pending_evaluation",
+        "pending_english_feedback", "feedback_output_mode",
         "diagnosis_disclosed", "conversation_started_at", "timer_frozen_at",
         "timeout_triggered", "logged_this_session", "admin_mode",
         "context_engine", "case_config",
@@ -147,6 +374,7 @@ def reset_to_case_selection():
         "voice_mode", "voice_input_mode", "voice_messages", "voice_duration",
         "voice_conversation_ended", "voice_selected", "voice_input_text",
         "pending_tts_audio",
+        "english_feedback_report", "english_feedback_error",
     ]
     for key in keys_to_clear:
         if key in st.session_state:
@@ -155,14 +383,20 @@ def reset_to_case_selection():
 
 def reset_voice_mode():
     """重置語音模式對話"""
+    st.session_state.messages = []
     st.session_state.voice_messages = []
     st.session_state.voice_duration = 0
     st.session_state.voice_conversation_ended = False
     st.session_state.last_evaluation = None
     st.session_state.last_evaluation_error = None
+    st.session_state.pending_evaluation = False
+    st.session_state.pending_english_feedback = False
+    st.session_state.feedback_output_mode = "chinese"
     st.session_state.steps_feedback = None
     st.session_state.spikes_feedback = None
     st.session_state.shair_feedback = None
+    st.session_state.english_feedback_report = None
+    st.session_state.english_feedback_error = None
 
 
 def _hash_password(raw: str) -> str:
@@ -190,11 +424,14 @@ def verify_user(email: str, password: str) -> bool:
 # 教案選擇頁面
 # =========================================================
 if not st.session_state.case_confirmed:
-    st.title("🏥 OSCE 醫病對話模擬器")
+    st.title(_t("🏥 OSCE 醫病對話模擬器"))
     st.markdown("---")
-    st.subheader("🔐 登入方式")
+    lang_col1, lang_col2 = st.columns([4, 1])
+    with lang_col2:
+        st.session_state.ui_language = st.selectbox("🌐", ["中文", "English"], index=0 if st.session_state.get("ui_language", "中文")=="中文" else 1, label_visibility="collapsed")
+    st.subheader(_t("🔐 登入方式"))
     st.session_state.auth_mode = st.radio(
-        "選擇登入方式",
+        _t("選擇登入方式"),
         options=["api_key", "email"],
         format_func=lambda x: "API Key" if x == "api_key" else "Email",
         horizontal=True,
@@ -207,36 +444,36 @@ if not st.session_state.case_confirmed:
             type="password",
             help="僅本機使用，不會寫入檔案。",
         ).strip()
-        if st.button("使用此 API Key", type="primary"):
+        if st.button(_t("使用此 API Key"), type="primary"):
             if st.session_state.openai_api_key:
                 st.session_state.active_api_key = st.session_state.openai_api_key
                 st.session_state.is_authenticated = True
                 st.session_state.auth_user_email = ""
-                st.success("已啟用 API Key 模式")
+                st.success(_t("已啟用 API Key 模式"))
             else:
-                st.error("請輸入有效的 API Key")
+                st.error(_t("請輸入有效的 API Key"))
     else:
         if not SERVER_API_KEY:
-            st.error("伺服端未設定 OPENAI_API_KEY，無法使用 Email 登入。請改用 API Key 模式。")
+            st.error(_t("伺服端未設定 OPENAI_API_KEY，無法使用 Email 登入。請改用 API Key 模式。"))
         email = st.text_input("Email", value=st.session_state.auth_user_email)
-        password = st.text_input("密碼", type="password")
-        if st.button("登入", type="primary"):
+        password = st.text_input(_t("密碼"), type="password")
+        if st.button(_t("登入"), type="primary"):
             if not email or not password:
-                st.warning("請輸入 Email 與密碼")
+                st.warning(_t("請輸入 Email 與密碼"))
             elif verify_user(email, password):
                 st.session_state.is_authenticated = True
                 st.session_state.auth_user_email = email
                 st.session_state.active_api_key = SERVER_API_KEY
                 st.success(f"已以 {email} 登入，小組金鑰已啟用")
             else:
-                st.error("帳號或密碼錯誤")
+                st.error(_t("帳號或密碼錯誤"))
 
     if st.session_state.is_authenticated:
         st.info(
             f"登入方式：{'API Key' if st.session_state.auth_mode == 'api_key' else 'Email'}"
             + (f"｜使用者：{st.session_state.auth_user_email}" if st.session_state.auth_user_email else "")
         )
-        if st.button("登出", type="secondary"):
+        if st.button(_t("登出"), type="secondary"):
             st.session_state.is_authenticated = False
             st.session_state.auth_user_email = ""
             st.session_state.active_api_key = ""
@@ -244,19 +481,19 @@ if not st.session_state.case_confirmed:
             st.rerun()
 
     # 使用者身分選單
-    st.subheader("👤 使用者資訊")
+    st.subheader(_t("👤 使用者資訊"))
     user_cols = st.columns(3)
     with user_cols[0]:
         st.session_state.user_identity = st.selectbox(
-            "使用者身分",
-            options=["醫學生", "臨床教師", "測試者", "其他"],
-            index=["醫學生", "臨床教師", "測試者", "其他"].index(st.session_state.user_identity),
+            _t("使用者身分"),
+            options=[_t("醫學生"), _t("臨床教師"), _t("測試者"), _t("其他")],
+            index=[_t("醫學生"), _t("臨床教師"), _t("測試者"), _t("其他")].index(st.session_state.user_identity) if st.session_state.user_identity in [_t("醫學生"), _t("臨床教師"), _t("測試者"), _t("其他")] else 0,
             help="請選擇您的身分類別"
         )
     with user_cols[1]:
         group_options = [f"第{i}組" for i in range(1, 19)]
         st.session_state.user_group = st.selectbox(
-            "組別",
+            _t("組別"),
             options=group_options,
             index=group_options.index(st.session_state.user_group) if st.session_state.user_group in group_options else 0,
             help="請選擇您的組別（第1組~第18組）"
@@ -264,15 +501,15 @@ if not st.session_state.case_confirmed:
     with user_cols[2]:
         serial_options = [str(i) for i in range(1, 11)]
         st.session_state.user_serial = st.selectbox(
-            "序號",
+            _t("序號"),
             options=serial_options,
             index=serial_options.index(st.session_state.user_serial) if st.session_state.user_serial in serial_options else 0,
             help="請選擇您的序號（1-10）"
         )
 
     st.markdown("---")
-    st.subheader("請選擇練習教案")
-    st.markdown("每個教案有獨立的對話情境和評分標準。選擇後將進入對應的模擬對話。")
+    st.subheader(_t("請選擇練習教案"))
+    st.markdown(_t("每個教案有獨立的對話情境和評分標準。選擇後將進入對應的模擬對話。"))
     st.markdown("")
     
     # 教案選擇卡片（排除停用教案）
@@ -282,15 +519,15 @@ if not st.session_state.case_confirmed:
     for idx, (case_id, case_info) in enumerate(active_cases):
         with cols[idx % len(cols)]:
             with st.container(border=True):
-                st.markdown(f"### {case_info['icon']} {case_info['name']}")
-                st.markdown(f"**角色：** {case_info['role']}")
-                st.markdown(f"**病人：** {case_info['patient_name']}")
-                st.markdown(f"**場景：** {case_info['scenario']}")
+                st.markdown(f"### {case_info['icon']} {_t(case_info['name'])}")
+                st.markdown(f"{_t('角色：')} {_t(case_info['role'])}")
+                st.markdown(f"{_t('病人：')} {_t(case_info['patient_name'])}")
+                st.markdown(f"{_t('場景：')} {_t(case_info['scenario'])}")
                 st.markdown(f"")
-                st.caption(case_info['description'])
+                st.caption(_t(case_info['description']))
                 st.markdown("")
                 if st.button(
-                    f"選擇此教案",
+                    _t("選擇此教案"),
                     key=f"select_{case_id}",
                     type="primary",
                     use_container_width=True,
@@ -446,6 +683,10 @@ if "last_evaluation_error" not in st.session_state:
     st.session_state.last_evaluation_error = None
 if "pending_evaluation" not in st.session_state:
     st.session_state.pending_evaluation = False
+if "pending_english_feedback" not in st.session_state:
+    st.session_state.pending_english_feedback = False
+if "feedback_output_mode" not in st.session_state:
+    st.session_state.feedback_output_mode = "chinese"
 if "diagnosis_disclosed" not in st.session_state:
     st.session_state.diagnosis_disclosed = False
 if "conversation_started_at" not in st.session_state:
@@ -468,6 +709,10 @@ if "spikes_feedback" not in st.session_state:
     st.session_state.spikes_feedback = None
 if "shair_feedback" not in st.session_state:
     st.session_state.shair_feedback = None
+if "english_feedback_report" not in st.session_state:
+    st.session_state.english_feedback_report = None
+if "english_feedback_error" not in st.session_state:
+    st.session_state.english_feedback_error = None
 
 # =========================================================
 # 工具函式
@@ -492,10 +737,10 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
         fixed_elapsed_ms = None
     limit_ms = int(limit_minutes * 60 * 1000) if limit_minutes else 0
     triggered_literal = "true" if already_triggered else "false"
-    components.html(
+    st.iframe(
         f"""
         <div class="timer-box">
-            <div class="timer-label">對話經過時間</div>
+            <div class="timer-label">{_t('對話經過時間')}</div>
             <div id="timer-display" class="timer-value">00:00</div>
             <div id="timer-limit" class="timer-subtext"></div>
         </div>
@@ -552,7 +797,7 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
                         return;
                     }}
                     if (startMs <= 0) {{
-                        displayEl.textContent = "尚未開始";
+                        displayEl.textContent = "{_t('尚未開始')}";
                         displayEl.classList.remove("timer-alert");
                         updateLimitText(true);
                         return;
@@ -571,7 +816,7 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
                         const remaining = limitMs - elapsed;
                         if (remaining <= 0) {{
                             displayEl.classList.add("timer-alert");
-                            limitEl.textContent = "時間已到";
+                            limitEl.textContent = "{_t('時間已到')}";
                             clearInterval(timerId);
                             if (!hasSignaled) {{
                                 hasSignaled = true;
@@ -582,11 +827,11 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
                             }}
                         }} else {{
                             const minutesLeft = Math.max(0, Math.floor(remaining / 60000));
-                            limitEl.textContent = "剩餘約 " + minutesLeft + " 分";
+                            limitEl.textContent = "{_t('剩餘約')} " + minutesLeft + " {_t('分')}";
                             displayEl.classList.remove("timer-alert");
                         }}
                     }} else if (limitEl) {{
-                        limitEl.textContent = "不限時";
+                        limitEl.textContent = "{_t('不限時')}";
                     }}
                 }}
 
@@ -849,10 +1094,10 @@ def create_emotion_card_html(emotion_mode: str, intensity: int) -> str:
         <span style="font-size: 28px;">{emoji}</span>
         <div>
             <div style="color: {text_color}; font-weight: bold; font-size: 14px;">
-                情緒狀態：{emotion_mode}
+                {_t('情緒狀態：')}{_t(emotion_mode)}
             </div>
             <div style="color: {text_color}; font-size: 13px; margin-top: 2px;">
-                強度：<span style="font-family: monospace; letter-spacing: 2px;">{intensity_bar}</span> ({intensity}/5)
+                {_t('強度：')}<span style="font-family: monospace; letter-spacing: 2px;">{intensity_bar}</span> ({intensity}/5)
             </div>
         </div>
     </div>
@@ -864,7 +1109,7 @@ def create_emotion_card_html(emotion_mode: str, intensity: int) -> str:
         border-top: 1px solid rgba(255,255,255,0.3);
         font-style: italic;
     ">
-        💭 {desc}
+        💭 {_t(desc)}
     </div>
 </div>
 """
@@ -917,7 +1162,7 @@ def _strip_visual_tags(content: str) -> str:
     # 移除情緒卡片相關行
     lines = []
     for line in text.splitlines():
-        if any(key in line for key in ("情緒狀態：", "強度：", "💭")):
+        if any(key in line for key in ("情緒狀態：", "強度：", "💭", "Emotion State:", "Intensity:")):
             continue
         lines.append(line)
     text = "\n".join(lines)
@@ -951,19 +1196,21 @@ def compose_system_prompt(latest_user_text: str) -> str:
     
     # 使用教案專屬的提示詞組合函式
     if selected_case == "npc":
-        return case_compose_system_prompt(
+        prompt = case_compose_system_prompt(
             stage=stage,
             emotion_mode=emotion_mode,
             student_level=st.session_state.student_level,
             context_block=context_block,
             diagnosis_disclosed=st.session_state.diagnosis_disclosed,
         )
+        return apply_language_adaptive_rules(prompt)
     elif selected_case == "abdominal_pain":
-        return case_compose_system_prompt(
+        prompt = case_compose_system_prompt(
             stage=stage,
             emotion_mode=emotion_mode,
             context_block=context_block,
         )
+        return apply_language_adaptive_rules(prompt)
     return ""
 
 
@@ -974,6 +1221,69 @@ def _format_conversation_for_model(messages) -> str:
         content = _strip_visual_tags(msg.get("content", "").strip())
         lines.append(f"{idx}. {role}: {content}")
     return "\n".join(lines)
+
+
+LANGUAGE_ADAPTIVE_RULES = """
+
+### 語言規則（優先遵守）
+- 可以使用繁體中文或英文對話。
+- 若醫學生使用英文，請以自然英文回答；若醫學生使用繁體中文，請以繁體中文回答。
+- 若醫學生明確要求切換語言，請依其要求切換。
+- 即使使用英文，也必須維持同一個標準化病人/家屬角色、情緒模式、資訊揭露限制與簡短口語回覆。
+""".strip()
+
+
+def apply_language_adaptive_rules(prompt: str) -> str:
+    return f"{prompt}\n\n{LANGUAGE_ADAPTIVE_RULES}" if prompt else LANGUAGE_ADAPTIVE_RULES
+
+
+def get_evaluation_max_score(structured_eval: Dict[str, Any]) -> int | None:
+    return 20
+
+
+def format_total_score(total_score: Any, max_score: int | None) -> str:
+    if total_score is None:
+        return "N/A"
+    display_score = total_score
+    if max_score:
+        try:
+            display_score = min(int(total_score), max_score)
+        except (TypeError, ValueError):
+            display_score = total_score
+    if max_score:
+        return f"{display_score}/{max_score}"
+    return str(display_score)
+
+
+def build_score_rows(structured_eval: Dict[str, Any]) -> List[Dict[str, Any]]:
+    rows = []
+    for item in structured_eval.get("evaluation_items", []) or []:
+        if not isinstance(item, dict):
+            continue
+        score_value = item.get("score")
+        try:
+            score_value = int(score_value) if score_value is not None else None
+        except (TypeError, ValueError):
+            pass
+        rows.append({
+            "項目": item.get("item", ""),
+            "得分": score_value,
+            "說明": item.get("detail", ""),
+            "評分理由": item.get("rationale", ""),
+        })
+    return rows
+
+
+def extract_score_highlights(rows: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    numeric_rows = [r for r in rows if isinstance(r.get("得分"), int)]
+    if not numeric_rows:
+        return [], []
+    sorted_rows = sorted(numeric_rows, key=lambda r: r.get("得分", 0), reverse=True)
+    max_score = sorted_rows[0]["得分"]
+    min_score = sorted_rows[-1]["得分"]
+    strengths = [r for r in sorted_rows if r.get("得分") == max_score][:3]
+    gaps = [r for r in reversed(sorted_rows) if r.get("得分") == min_score][:3]
+    return strengths, gaps
 
 
 def _call_evaluation_api(prompt_text: str) -> str:
@@ -1021,10 +1331,14 @@ def generate_conversation_evaluation(messages) -> Dict:
     if selected_case == "npc":
         meta_info += f"醫學生等級：Level {st.session_state.student_level}\n"
     
+    lang_req = ""
+    if st.session_state.get("ui_language") == "English":
+        lang_req = "\n【LANGUAGE REQUIREMENT】\nPlease output the JSON content ENTIRELY IN ENGLISH. All values for 'item', 'detail', 'rationale', 'brief_feedback', etc., MUST be translated to English."
+    
     conversation_text = _format_conversation_for_model(messages)
     user_prompt = f"""
 以下提供一段醫學生與標準化{ROLE_LABEL}的完整逐字稿。
-請依據規範輸出單一 JSON 物件，填寫評分項目與整體回饋。
+請依據規範輸出單一 JSON 物件，填寫評分項目與整體回饋。{lang_req}
 
 [對話背景]
 {meta_info}
@@ -1053,12 +1367,40 @@ def generate_conversation_evaluation(messages) -> Dict:
 
 def request_evaluation():
     st.session_state.pending_evaluation = True
+    st.session_state.feedback_output_mode = "chinese"
+
+
+def sync_voice_messages_to_conversation() -> bool:
+    if not (st.session_state.get("voice_conversation_ended") and st.session_state.get("voice_messages")):
+        return bool(st.session_state.get("messages"))
+    st.session_state.messages = [
+        {"role": m.get("role"), "content": m.get("content", "")}
+        for m in st.session_state.voice_messages
+    ]
+    if st.session_state.conversation_started_at is None:
+        st.session_state.conversation_started_at = time.time() - st.session_state.get("voice_duration", 0)
+    return bool(st.session_state.messages)
+
+
+def request_english_feedback():
+    if not sync_voice_messages_to_conversation():
+        st.session_state.english_feedback_error = "No content available for English version rating and feedback yet."
+        return
+    st.session_state.pending_english_feedback = True
+    st.session_state.feedback_output_mode = "english"
+    st.session_state.english_feedback_report = None
+    st.session_state.english_feedback_error = None
+    if st.session_state.conversation_started_at and not st.session_state.timer_frozen_at:
+        st.session_state.timer_frozen_at = time.time()
 
 
 def build_steps_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List[Dict[str, Any]], conversation_text: str) -> str:
     """產生 STEPS 模式回饋"""
+    is_en = st.session_state.get("ui_language") == "English"
     def join_items(items):
         names = [item.get("項目") for item in items if item.get("項目")]
+        if is_en:
+            return ", ".join(names) if names else "No obvious items yet"
         return "、".join(names) if names else "尚未顯著項目"
 
     strength_text = join_items(strengths)
@@ -1072,12 +1414,12 @@ E = Encourage questions（鼓勵病人/家屬問問題）
 P = Plain language（用簡單易懂的話，避免醫學術語）
 S = Show example（能以舉例、圖片、模型、畫圖或手冊輔助說明）
 
-請根據下列對話逐字稿與評分資訊，以 STEPS 模型對醫學生提供約 400-500 字的中文回饋。
+請根據下列對話逐字稿與評分資訊，以 STEPS 模型對醫學生提供約 400-500 字的{"英文" if is_en else "中文"}回饋。
 
 要求：
 - 以醫學生為對象，語氣具體、鼓勵且有建設性。
 - 請仔細閱讀對話逐字稿，針對醫學生說過的具體句子給出回饋。
-- 依序分成五小段輸出，每一段的開頭請明確以「S (Speak slowly & clearly)：」「T (Teach-back)：」「E (Encourage questions)：」「P (Plain language)：」「S (Show example)：」標示。
+- { "依序分成五小段輸出，每一段的開頭請明確以「Speak slowly & clearly:」「Teach-back or Show-me:」「Encourage questions:」「Plain language:」「Show example:」標示。" if is_en else "依序分成五小段輸出，每一段的開頭請明確以「S (Speak slowly & clearly)：」「T (Teach-back)：」「E (Encourage questions)：」「P (Plain language)：」「S (Show example)：」標示。" }
 - 每一段內容約 2-4 句完整句子。
 
 [情境階段]
@@ -1119,12 +1461,21 @@ S = Show example（能以舉例、圖片、模型、畫圖或手冊輔助說明�
 
 def build_spikes_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List[Dict[str, Any]], conversation_text: str) -> str:
     """產生 SPIKES 模式回饋"""
+    is_en = st.session_state.get("ui_language") == "English"
     def join_items(items):
         names = [item.get("項目") for item in items if item.get("項目")]
+        if is_en:
+            return ", ".join(names) if names else "No obvious items yet"
         return "、".join(names) if names else "尚未顯著項目"
 
     strength_text = join_items(strengths)
     gap_text = join_items(gaps)
+    
+    lang_str = "英文" if is_en else "中文"
+    if is_en:
+        headers_instruction = "依序分成三大段輸出，每一段的開頭請明確標示：\n  「Setting:」\n  「Perception → Invitation → Knowledge → Empathy:」\n  「Strategy and Summary:」"
+    else:
+        headers_instruction = "依序分成三大段輸出，每一段的開頭請明確標示：\n  「一、建立關係 (Setting)：」\n  「二、說明解釋 (Perception → Invitation → Knowledge → Empathy)：」\n  「三、總結對話 (Strategy and Summary)：」"
 
     spikes_prompt = f"""
 你是一位具溝通教學經驗的 OSCE 主考官，熟悉困難溝通中的 SPIKES 模式：
@@ -1135,15 +1486,12 @@ K = Knowledge（說明病情：清楚、分段、避免專有名詞地傳遞壞�
 E = Empathy（同理心：回應病人情緒、給予支持與陪伴）
 S = Strategy and Summary（總結對話：討論後續計畫、確認理解、提供資源）
 
-請根據下列對話逐字稿與評分資訊，以 SPIKES 模型對醫學生提供約 400-500 字的中文回饋。
+請根據下列對話逐字稿與評分資訊，以 SPIKES 模型對醫學生提供約 400-500 字的{lang_str}回饋。
 
 要求：
 - 以醫學生為對象，語氣具體、鼓勵且有建設性。
 - 請仔細閱讀對話逐字稿，針對醫學生說過的具體句子給出回饋。
-- 依序分成三大段輸出，每一段的開頭請明確標示：
-  「一、建立關係 (Setting)：」
-  「二、說明解釋 (Perception → Invitation → Knowledge → Empathy)：」
-  「三、總結對話 (Strategy and Summary)：」
+- {headers_instruction}
 - 每一段內容約 3-5 句完整句子。
 
 [情境階段]
@@ -1185,8 +1533,11 @@ S = Strategy and Summary（總結對話：討論後續計畫、確認理解、�
 
 def build_shair_feedback(stage: str, strengths: List[Dict[str, Any]], gaps: List[Dict[str, Any]], conversation_text: str) -> str:
     """產生 SHAIR 模式回饋"""
+    is_en = st.session_state.get("ui_language") == "English"
     def join_items(items):
         names = [item.get("項目") for item in items if item.get("項目")]
+        if is_en:
+            return ", ".join(names) if names else "No obvious items yet"
         return "、".join(names) if names else "尚未顯著項目"
 
     strength_text = join_items(strengths)
@@ -1200,12 +1551,12 @@ A = Additional information（補充適量且清楚的醫療資訊）
 I = Individualize（依病人家庭、身分、價值觀調整說明方式）
 R = Reassure and plan（安撫情緒並共同擬定後續計畫）
 
-請根據下列對話逐字稿與評分資訊，以 SHAIR 模型對醫學生提供約 400-500 字的中文回饋。
+請根據下列對話逐字稿與評分資訊，以 SHAIR 模型對醫學生提供約 400-500 字的{"英文" if is_en else "中文"}回饋。
 
 要求：
 - 以醫學生為對象，語氣具體、鼓勵且有建設性。
 - 請仔細閱讀對話逐字稿，針對醫學生說過的具體句子給出回饋。
-- 依序分成五小段輸出，每一段的開頭請明確以「S (Supportive environment)：」「H (How to deliver)：」「A (Additional information)：」「I (Individualize)：」「R (Reassure and plan)：」標示。
+- { "依序分成五小段輸出，每一段的開頭請明確以「Supportive environment:」「How to deliver:」「Additional information:」「Individualize:」「Reassure and plan:」標示。" if is_en else "依序分成五小段輸出，每一段的開頭請明確以「S (Supportive environment)：」「H (How to deliver)：」「A (Additional information)：」「I (Individualize)：」「R (Reassure and plan)：」標示。" }
 - 每一段內容約 2-4 句完整句子。
 
 [情境階段]
@@ -1260,17 +1611,17 @@ def build_combined_report(
 ) -> bytes:
     """建立完整的評分報告"""
     buffer = io.StringIO()
-    buffer.write("=== 對話概覽 ===\n")
+    buffer.write(f"=== {_t('對話概覽')} ===\n")
     if case_name:
-        buffer.write(f"教案：{case_name}\n")
+        buffer.write(f"{_t('教案')}：{_t(case_name)}\n")
     # 使用者資訊
     if user_info:
         if user_info.get("identity"):
             buffer.write(f"使用者身分：{user_info['identity']}\n")
         if user_info.get("group"):
             buffer.write(f"組別：{user_info['group']}\n")
-        if user_info.get("number"):
-            buffer.write(f"序號：{user_info['number']}\n")
+        if user_info.get("serial"):
+            buffer.write(f"序號：{user_info['serial']}\n")
     buffer.write(f"階段：{stage}\n")
     buffer.write(f"情緒模式：{emotion_mode}\n")
     total_seconds = get_elapsed_seconds(st.session_state.conversation_started_at)
@@ -1278,15 +1629,16 @@ def build_combined_report(
     secs = total_seconds % 60
     buffer.write(f"對話總時長：{mins} 分 {secs} 秒\n")
     buffer.write("\n")
-    buffer.write("=== 對話逐字稿 ===\n")
+    buffer.write(f"=== {_t('對話逐字稿')} ===\n")
     buffer.write(format_conversation_for_txt(messages))
     buffer.write("\n\n")
 
     if evaluation:
         structured = evaluation.get("structured", {})
         overall = structured.get("overall_performance", {}) or {}
-        buffer.write("=== 評分摘要 ===\n")
-        buffer.write(f"項目評分總分：{overall.get('total_score', 'N/A')}\n")
+        max_score = get_evaluation_max_score(structured)
+        buffer.write(f"=== {_t('評分摘要')} ===\n")
+        buffer.write(f"{_t('項目評分總分')}：{format_total_score(overall.get('total_score'), max_score)}\n")
         rating_5 = overall.get("rating_1_to_5", {}) or {}
         r5_score = rating_5.get("score")
         r5_text = "N/A"
@@ -1297,8 +1649,8 @@ def build_combined_report(
                 r5_text = f"{s} {mapping.get(s, '')}".strip()
             except:
                 r5_text = str(r5_score)
-        buffer.write(f"1-5 級整體表現：{r5_text}\n")
-        buffer.write(f"重點回饋：{structured.get('brief_feedback', '')}\n\n")
+        buffer.write(f"{_t('1-5 級整體表現')}：{r5_text}\n")
+        buffer.write(f"{_t('重點回饋')}：{structured.get('brief_feedback', '')}\n\n")
 
         def _clean_name(n):
             if "." in n:
@@ -1307,14 +1659,14 @@ def build_combined_report(
                     return parts[1].strip()
             return n
 
-        buffer.write("=== 亮點項目 ===\n")
+        buffer.write(f"=== {_t('亮點項目')} ===\n")
         if strengths:
             for item in strengths:
                 buffer.write(f"- {_clean_name(item.get('項目', ''))}\n")
         else:
             buffer.write("- 尚未顯著亮點\n")
 
-        buffer.write("\n=== 待加強項目 ===\n")
+        buffer.write(f"\n=== {_t('待加強項目')} ===\n")
         if gaps:
             for item in gaps:
                 buffer.write(f"- {_clean_name(item.get('項目', ''))}\n")
@@ -1322,19 +1674,141 @@ def build_combined_report(
             buffer.write("- 無明顯低分項目\n")
 
         # 回饋順序：STEPS → SPIKES → SHAIR
-        buffer.write("\n=== STEPS 回饋 ===\n")
+        buffer.write(f"\n=== {_t('STEPS 回饋')} ===\n")
         buffer.write(steps_feedback)
         buffer.write("\n")
 
-        buffer.write("\n=== SPIKES 回饋 ===\n")
+        buffer.write(f"\n=== {_t('SPIKES 回饋')} ===\n")
         buffer.write(spikes_feedback)
         buffer.write("\n")
 
-        buffer.write("\n=== SHAIR 回饋 ===\n")
+        buffer.write(f"\n=== {_t('SHAIR 回饋')} ===\n")
         buffer.write(shair_feedback)
         buffer.write("\n")
 
     return buffer.getvalue().encode("utf-8")
+
+
+def build_english_feedback_report(
+    messages: List[Dict[str, str]],
+    evaluation: Dict[str, Any],
+    stage: str,
+    emotion_mode: str,
+    strengths: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    steps_feedback: str,
+    spikes_feedback: str,
+    shair_feedback: str,
+    case_name: str = "",
+    user_info: Dict[str, str] = None,
+) -> bytes:
+    """Generate an English scoring feedback report for international learners."""
+    structured = evaluation.get("structured", {}) if evaluation else {}
+    overall = structured.get("overall_performance", {}) or {}
+    max_score = get_evaluation_max_score(structured)
+    total_display = format_total_score(overall.get("total_score"), max_score)
+    conversation_text = _format_conversation_for_model(messages)
+    score_items = structured.get("evaluation_items", []) or []
+
+    user_lines = []
+    if user_info:
+        if user_info.get("identity"):
+            user_lines.append(f"Role: {user_info['identity']}")
+        if user_info.get("group"):
+            user_lines.append(f"Group: {user_info['group']}")
+        if user_info.get("serial"):
+            user_lines.append(f"Serial: {user_info['serial']}")
+
+    existing_feedback_block = ""
+    if steps_feedback or spikes_feedback or shair_feedback:
+        existing_feedback_block = f"""
+[Existing Chinese STEPS Feedback]
+{steps_feedback}
+
+[Existing Chinese SPIKES Feedback]
+{spikes_feedback}
+
+[Existing Chinese SHAIR Feedback]
+{shair_feedback}
+""".strip()
+    else:
+        existing_feedback_block = """
+[Narrative Feedback Instruction]
+No Chinese narrative feedback is provided. Generate original English STEPS, SPIKES, and SHAIR feedback directly from the scores and transcript.
+""".strip()
+
+    prompt = f"""
+Create a polished English OSCE scoring feedback report for visiting learners.
+
+Requirements:
+- Write entirely in English.
+- Do not include Chinese text in the final report; translate or romanize names and transcript lines when needed.
+- Keep the same scoring facts; do not change any scores.
+- Show the item total score as "{total_display}".
+- Explain feedback concretely for the learner, based on the transcript.
+- Translate any Chinese item names, rationales, and transcript content needed for the report into clear English.
+- The output format must STRICTLY match the following sections and ONLY these sections:
+  Item Score
+  1-to-5 Overall Rating
+  Brief Feedback
+  
+  Strengths
+  
+  Priority Improvements
+  
+  STEPS Feedback (MUST use these exact headers: Speak slowly & clearly, Teach-back or Show-me, Encourage questions, Plain language, Show example)
+  
+  SPIKES Feedback (MUST use these exact headers: Setting, Perception → Invitation → Knowledge → Empathy, Strategy and Summary)
+  
+  SHAIR Feedback (MUST use these exact headers: Supportive environment, How to deliver, Additional information, Individualize, Reassure and plan)
+- DO NOT include Encounter Overview, Itemized Scoring Feedback, Conversation Transcript, or any other extra sections.
+
+[Encounter]
+Case: {case_name}
+Stage: {stage}
+Emotion mode: {emotion_mode}
+{chr(10).join(user_lines)}
+
+[Score Summary]
+Total item score: {total_display}
+1-to-5 overall rating: {json.dumps(overall.get("rating_1_to_5", {}), ensure_ascii=False)}
+Brief feedback: {structured.get("brief_feedback", "")}
+
+[Itemized Scores JSON]
+{json.dumps(score_items, ensure_ascii=False, indent=2)}
+
+[Strength Items]
+{json.dumps(strengths, ensure_ascii=False, indent=2)}
+
+[Priority Improvement Items]
+{json.dumps(gaps, ensure_ascii=False, indent=2)}
+
+{existing_feedback_block}
+
+[Conversation Transcript]
+{conversation_text}
+""".strip()
+
+    response = client.responses.create(
+        model=EVALUATION_MODEL,
+        input=[
+            {"role": "system", "content": [{"type": "input_text", "text": "You are a clinical communication OSCE faculty member writing clear English feedback for international medical trainees."}]},
+            {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
+        ],
+        temperature=0.3,
+    )
+
+    collected = []
+    for item in getattr(response, "output", []) or []:
+        for c in getattr(item, "content", []) or []:
+            if getattr(c, "type", "") in {"output_text", "text"}:
+                collected.append(getattr(c, "text", ""))
+    if not collected and hasattr(response, "output_text"):
+        collected.append(response.output_text)
+    text = "\n".join(t for t in collected if t).strip()
+    if not text:
+        raise RuntimeError("英文版回饋模型未返回任何文字內容。")
+    return text.encode("utf-8")
 
 
 def format_conversation_for_txt(messages):
@@ -1351,61 +1825,90 @@ def format_conversation_for_txt(messages):
 # 側邊欄
 # =========================================================
 with st.sidebar:
-    if st.button("🔙 返回教案選擇", type="secondary", use_container_width=True):
+    if st.button(_t("🔙 返回教案選擇"), type="secondary", use_container_width=True):
         reset_to_case_selection()
         st.rerun()
-    st.markdown(f"### 當前教案")
-    st.markdown(f"**{case_info.get('icon', '')} {case_info.get('name', '')}**")
-    st.caption(f"角色：{case_info.get('role', '')}")
+    st.markdown(f"### {_t('當前教案')}")
+    st.markdown(f"**{case_info.get('icon', '')} {_t(case_info.get('name', ''))}**")
+    st.caption(f"{_t('角色：')}{_t(case_info.get('role', ''))}")
     
     st.divider()
     
     # 考生指引與報告摘要（移到對話模式上方）
     if selected_case == "npc":
-        with st.expander("📘 考生指引摘錄", expanded=False):
-            st.markdown(
-                "背景：46 歲男性吳忠明，在內視鏡鼻咽部切片檢查後回診確認報告。  \n"
-                "任務：向病人說明病情與後續流程，並確保能回應相關提問。  \n"
-                "測驗重點：病情說明、情緒處置以及臨床下一步溝通，時間總長 7 分鐘。"
-            )
-        with st.expander("🧾 病理報告摘要", expanded=False):
-            st.markdown(
-                "病理診斷：鼻咽部角化鱗狀細胞癌 (keratinizing squamous cell carcinoma)。  \n"
-                "備註：報告放置於診間桌面，醫師口頭揭露前病人不會自行確認為癌症。"
-            )
+        with st.expander(_t("📘 考生指引摘錄"), expanded=False):
+            if st.session_state.get("ui_language") == "English":
+                st.markdown(
+                    "Background: 46-year-old male Wu Zhong-Ming, returning to confirm report after endoscopic nasopharyngeal biopsy.  \n"
+                    "Task: Explain the condition and follow-up process, ensuring you respond to related questions.  \n"
+                    "Focus: Breaking bad news, handling emotions, and discussing next clinical steps. Total time: 7 minutes."
+                )
+            else:
+                st.markdown(
+                    "背景：46 歲男性吳忠明，在內視鏡鼻咽部切片檢查後回診確認報告。  \n"
+                    "任務：向病人說明病情與後續流程，並確保能回應相關提問。  \n"
+                    "測驗重點：病情說明、情緒處置以及臨床下一步溝通，時間總長 7 分鐘。"
+                )
+        with st.expander(_t("🧾 病理報告摘要"), expanded=False):
+            if st.session_state.get("ui_language") == "English":
+                st.markdown(
+                    "Pathology Diagnosis: Keratinizing squamous cell carcinoma of the nasopharynx.  \n"
+                    "Note: The report is placed on the desk. The patient will not assume it is cancer until verbally informed."
+                )
+            else:
+                st.markdown(
+                    "病理診斷：鼻咽部角化鱗狀細胞癌 (keratinizing squamous cell carcinoma)。  \n"
+                    "備註：報告放置於診間桌面，醫師口頭揭露前病人不會自行確認為癌症。"
+                )
     elif selected_case == "abdominal_pain":
-        with st.expander("📘 情境說明", expanded=False):
-            st.markdown(
-                "**場景**：急診室  \n"
-                "**病人**：陳志華先生，75 歲，糖尿病導致末期腎臟病，腹膜透析約兩年。  \n"
-                "**現況**：因腹痛 8 小時、發燒、血壓低，已在急救室輸液/氧氣。  \n"
-                "**您的角色**：長女（主要照顧者），需與醫學生討論病情與治療選項。"
-            )
-        with st.expander("🧾 抽血檢驗報告", expanded=False):
+        with st.expander(_t("📘 情境說明"), expanded=False):
+            if st.session_state.get("ui_language") == "English":
+                st.markdown(
+                    "**Scenario**: Emergency Room  \n"
+                    "**Patient**: Chen Zhi-Hua, 75 y/o, diabetic end-stage renal disease, PD for ~2 years.  \n"
+                    "**Current**: In ER for abdominal pain x 8 hrs, fever, low BP. On IV fluids/O2.  \n"
+                    "**Your Role**: Eldest Daughter (Primary Caregiver). Discuss condition and treatment options."
+                )
+            else:
+                st.markdown(
+                    "**場景**：急診室  \n"
+                    "**病人**：陳志華先生，75 歲，糖尿病導致末期腎臟病，腹膜透析約兩年。  \n"
+                    "**現況**：因腹痛 8 小時、發燒、血壓低，已在急救室輸液/氧氣。  \n"
+                    "**您的角色**：長女（主要照顧者），需與醫學生討論病情與治療選項。"
+                )
+        with st.expander(_t("🧾 抽血檢驗報告"), expanded=False):
             for category, items in LAB_DATA.items():
                 st.markdown(f"**{category}**")
                 for test_name, value in items.items():
                     st.markdown(f"- {test_name}：{value}")
-        with st.expander("🖼️ CT 影像", expanded=False):
+        with st.expander(_t("🖼️ CT 影像"), expanded=False):
             for img_name in CT_IMAGES:
                 img_path = PROJECT_ROOT / img_name
                 if img_path.exists():
                     st.image(str(img_path), use_container_width=True)
                 else:
                     st.warning(f"找不到圖片：{img_name}")
-        with st.expander("🧾 衛教重點", expanded=False):
-            st.markdown(
-                "1. 腹膜透析的無菌操作（洗手、環境清潔）  \n"
-                "2. 手術與麻醉風險說明  \n"
-                "3. 不手術的後果與替代方案  \n"
-                "4. 轉院考量與建議"
-            )
+        with st.expander(_t("🧾 衛教重點"), expanded=False):
+            if st.session_state.get("ui_language") == "English":
+                st.markdown(
+                    "1. PD aseptic technique (handwashing, environment)  \n"
+                    "2. Surgical and anesthesia risks  \n"
+                    "3. Consequences of not operating & alternatives  \n"
+                    "4. Transfer considerations and recommendations"
+                )
+            else:
+                st.markdown(
+                    "1. 腹膜透析的無菌操作（洗手、環境清潔）  \n"
+                    "2. 手術與麻醉風險說明  \n"
+                    "3. 不手術的後果與替代方案  \n"
+                    "4. 轉院考量與建議"
+                )
     
     st.divider()
     
     # 對話模式切換（三種模式）
-    st.markdown("### 🎛️ 對話模式")
-    mode_options = ["💬 文字模式", "🎙️ 語音輸入", "🎤 即時語音"]
+    st.markdown(_t("🎛️ 對話模式"))
+    mode_options = [_t("💬 文字模式"), _t("🎙️ 語音輸入"), _t("🎤 即時語音")]
     # 判斷當前模式
     if st.session_state.voice_mode:
         current_mode_idx = 2  # 即時語音模式
@@ -1415,7 +1918,7 @@ with st.sidebar:
         current_mode_idx = 0  # 文字模式
     
     selected_mode = st.radio(
-        "選擇對話模式",
+        _t("選擇對話模式"),
         mode_options,
         index=current_mode_idx,
         horizontal=True,
@@ -1423,8 +1926,8 @@ with st.sidebar:
     )
     
     # 處理模式切換
-    new_voice_mode = (selected_mode == "🎤 即時語音")
-    new_voice_input_mode = (selected_mode == "🎙️ 語音輸入")
+    new_voice_mode = (selected_mode == _t("🎤 即時語音"))
+    new_voice_input_mode = (selected_mode == _t("🎙️ 語音輸入"))
     
     if new_voice_mode != st.session_state.voice_mode or new_voice_input_mode != st.session_state.voice_input_mode:
         st.session_state.voice_mode = new_voice_mode
@@ -1435,9 +1938,14 @@ with st.sidebar:
         # 清除評分結果
         st.session_state.last_evaluation = None
         st.session_state.last_evaluation_error = None
+        st.session_state.pending_evaluation = False
+        st.session_state.pending_english_feedback = False
+        st.session_state.feedback_output_mode = "chinese"
         st.session_state.steps_feedback = None
         st.session_state.spikes_feedback = None
         st.session_state.shair_feedback = None
+        st.session_state.english_feedback_report = None
+        st.session_state.english_feedback_error = None
         st.session_state.voice_input_text = ""  # 清除語音輸入暫存
         st.rerun()
     
@@ -1453,7 +1961,7 @@ with st.sidebar:
             "sage": "Sage（中性，沉穩）",
         }
         st.session_state.voice_selected = st.selectbox(
-            "AI 語音",
+            _t("AI 語音"),
             list(voice_options.keys()),
             format_func=lambda x: voice_options[x],
             index=list(voice_options.keys()).index(st.session_state.voice_selected),
@@ -1461,24 +1969,24 @@ with st.sidebar:
     elif st.session_state.voice_input_mode:
         st.info("🎙️ 語音輸入：說完後可修改文字，按 Enter 送出")
 
-    st.header("⚙️ 功能選單")
+    st.header(_t("⚙️ 功能選單"))
     
     # 情緒模式選擇
     emotion_options = list(EMOTION_MODES.keys())
-    emotion_labels = [f"{EMOTION_MODES[m].get('emoji', '')} {m}" for m in emotion_options]
+    emotion_labels = [f"{EMOTION_MODES[m].get('emoji', '')} {_t(m)}" for m in emotion_options]
     current_idx = emotion_options.index(st.session_state.emotion_mode) if st.session_state.emotion_mode in emotion_options else 0
-    selected_label = st.selectbox("情緒模式", emotion_labels, index=current_idx)
+    selected_label = st.selectbox(_t("情緒模式"), emotion_labels, index=current_idx)
     st.session_state.emotion_mode = emotion_options[emotion_labels.index(selected_label)]
     
     # 醫學生等級（僅鼻咽癌教案）
     if selected_case == "npc":
         st.session_state.student_level = st.selectbox(
-            "醫學生等級（影響提示語料）",
+            _t("醫學生等級（影響提示語料）"),
             options=[3, 4, 5],
             index=[3, 4, 5].index(st.session_state.student_level),
         )
     
-    st.info(f"目前溝通階段：**{st.session_state.stage}**")
+    st.info(f"{_t('目前溝通階段：')}**{_t(st.session_state.stage)}**")
     
     # 語音模式下不顯示側邊欄計時器（語音介面有自己的倒數計時）
     if not st.session_state.voice_mode:
@@ -1491,7 +1999,7 @@ with st.sidebar:
         
         # 計時器設定
         timer_limit = st.slider(
-            "對話時間限制（分鐘，0 表示無）",
+            _t("對話時間限制（分鐘，0 表示無）"),
             min_value=0,
             max_value=40,
             value=st.session_state.timer_limit_minutes,
@@ -1502,7 +2010,7 @@ with st.sidebar:
         
         # 時間到自動產生評分
         auto_download = st.checkbox(
-            "時間到自動產生評分",
+            _t("時間到自動產生評分"),
             value=st.session_state.auto_download_on_timeout,
         )
         st.session_state.auto_download_on_timeout = auto_download
@@ -1512,12 +2020,14 @@ with st.sidebar:
     st.divider()
     
     # 重新開始
-    if st.button("🔄 重新開始對話", type="primary"):
+    if st.button(_t("🔄 重新開始對話"), type="primary"):
         st.session_state.messages = []
         st.session_state.stage = STAGES[0]
         st.session_state.last_evaluation = None
         st.session_state.last_evaluation_error = None
         st.session_state.pending_evaluation = False
+        st.session_state.pending_english_feedback = False
+        st.session_state.feedback_output_mode = "chinese"
         st.session_state.diagnosis_disclosed = False
         st.session_state.conversation_started_at = None
         st.session_state.timer_frozen_at = None
@@ -1526,6 +2036,8 @@ with st.sidebar:
         st.session_state.steps_feedback = None
         st.session_state.spikes_feedback = None
         st.session_state.shair_feedback = None
+        st.session_state.english_feedback_report = None
+        st.session_state.english_feedback_error = None
         st.session_state.last_audio_bytes = None
         st.session_state.last_tts_audio = None
         st.rerun()
@@ -1535,7 +2047,7 @@ with st.sidebar:
     # 產生評分
     if st.session_state.messages and not st.session_state.last_evaluation:
         if st.button(
-            "🧮 產生評分回饋",
+            _t("🧮 產生評分回饋"),
             type="secondary",
             disabled=st.session_state.pending_evaluation,
             help="完成問診後可點擊產生評分與回饋。",
@@ -1545,7 +2057,26 @@ with st.sidebar:
             if st.session_state.conversation_started_at and not st.session_state.timer_frozen_at:
                 st.session_state.timer_frozen_at = time.time()
             st.rerun()
-    
+
+    st.markdown("### English Version: Evaluation and Feedback")
+    has_feedback_source = bool(st.session_state.messages) or bool(
+        st.session_state.get("voice_conversation_ended") and st.session_state.get("voice_messages")
+    )
+    if st.button(
+        "Generate English Version: Evaluation and Feedback",
+        type="secondary",
+        disabled=not has_feedback_source or st.session_state.pending_evaluation or st.session_state.pending_english_feedback,
+        help="Can directly generate full English ratings and feedback; if not yet rated, the system will first generate rating data, then produce English feedback.",
+        use_container_width=True,
+        key="sidebar_english_feedback_btn",
+    ):
+        request_english_feedback()
+        st.rerun()
+    if not has_feedback_source:
+        st.caption("Available after completing the conversation or reading the real-time transcript.")
+    elif st.session_state.english_feedback_report:
+        st.caption("English version feedback has been generated and can be downloaded on the main screen.")
+
     st.divider()
     
     # 管理員模式
@@ -1556,7 +2087,7 @@ with st.sidebar:
             st.caption("❌ 代碼不正確。請再次確認。")
     else:
         st.session_state.admin_mode = st.checkbox(
-            "啟用管理員模式",
+            _t("啟用管理員模式"),
             value=st.session_state.admin_mode,
             help="未設定代碼時，可手動切換管理員模式。",
         )
@@ -1576,34 +2107,56 @@ if limit_seconds and elapsed_seconds >= limit_seconds and not st.session_state.t
 # 主介面
 # =========================================================
 if selected_case == "npc":
-    st.title("🩺 鼻咽癌病情告知模擬")
+    st.title("🩺 NPC Breaking Bad News" if st.session_state.get("ui_language")=="English" else "🩺 鼻咽癌病情告知模擬")
     col1, col2 = st.columns([3, 2])
     with col1:
-        st.markdown(
-            f"""
+        if st.session_state.get("ui_language") == "English":
+            st.markdown(
+                f"""
+**👤 Patient Info (See options for pathology report)**  
+Name: {_t(PATIENT_PERSONA['demographics']['name'])} ({PATIENT_PERSONA['demographics']['age']} y/o, {_t(PATIENT_PERSONA['demographics']['gender'])})  
+Chief Complaint: {', '.join([_t(s) for s in PATIENT_PERSONA['medical_history']['presenting_symptoms']])}  
+Family History: {_t(PATIENT_PERSONA['medical_history']['family_history'])}
+"""
+            )
+        else:
+            st.markdown(
+                f"""
 **👤 病人資訊 (相關病理報告於功能選單查看）**  
 姓名：{PATIENT_PERSONA['demographics']['name']}（{PATIENT_PERSONA['demographics']['age']} 歲，{PATIENT_PERSONA['demographics']['gender']}）  
 主訴：{', '.join(PATIENT_PERSONA['medical_history']['presenting_symptoms'])}  
 家族史：{PATIENT_PERSONA['medical_history']['family_history']}
 """
-        )
+            )
     with col2:
         emotion_cfg = EMOTION_MODES[st.session_state.emotion_mode]
         st.markdown(
             f"""
-**🎭 情緒狀態**  
-{emotion_cfg['emoji']} **{st.session_state.emotion_mode}**  
-{emotion_cfg['description']}
+**🎭 {_t('情緒狀態')}**  
+{emotion_cfg.get('emoji', '')} **{_t(st.session_state.emotion_mode)}**  
+{_t(emotion_cfg.get('description', ''))}
 """
         )
 elif selected_case == "abdominal_pain":
-    st.title("🚑 腹痛 - 家屬溝通模擬")
+    st.title("🚑 Abdominal Pain Comm" if st.session_state.get("ui_language")=="English" else "🚑 腹痛 - 家屬溝通模擬")
     col1, col2 = st.columns([3, 2])
     with col1:
         demographics = PATIENT_PERSONA['demographics']
         medical = PATIENT_PERSONA['medical_history']
-        st.markdown(
-            f"""
+        if st.session_state.get("ui_language") == "English":
+            st.markdown(
+                f"""
+**👤 Patient Info**  
+Name: {_t(demographics['patient_name'])} ({demographics['patient_age']} y/o, {_t(demographics['patient_gender'])})  
+Chief Complaint: {', '.join([_t(s) for s in medical['presenting_symptoms']])}  
+Medical History: {_t(medical.get('diagnosis', ''))}, {_t(medical.get('treatment', ''))}
+
+**👩 Your Role**: {_t(demographics['family_member'])} ({_t(demographics['family_relationship'])})
+"""
+            )
+        else:
+            st.markdown(
+                f"""
 **👤 病人資訊**  
 姓名：{demographics['patient_name']}（{demographics['patient_age']} 歲，{demographics['patient_gender']}）  
 主訴：{', '.join(medical['presenting_symptoms'])}  
@@ -1611,14 +2164,14 @@ elif selected_case == "abdominal_pain":
 
 **👩 您的角色**：{demographics['family_member']}（{demographics['family_relationship']}）
 """
-        )
+            )
     with col2:
         emotion_cfg = EMOTION_MODES[st.session_state.emotion_mode]
         st.markdown(
             f"""
-**🎭 情緒狀態**  
-{emotion_cfg['emoji']} **{st.session_state.emotion_mode}**  
-{emotion_cfg['description']}
+**🎭 {_t('情緒狀態')}**  
+{emotion_cfg.get('emoji', '')} **{_t(st.session_state.emotion_mode)}**  
+{_t(emotion_cfg.get('description', ''))}
 """
         )
 
@@ -1648,7 +2201,7 @@ def get_voice_system_prompt(case_id: str, emotion_mode: str) -> str:
 
 ### 回覆規則
 - 【最重要】你是病人，等待醫學生先開口。絕對不要主動先說話，必須等醫學生開始對話。
-- 只用繁體中文口語對話，保持情緒模式一致。
+- 可用繁體中文或英文對話；請依醫學生使用的語言回覆，並保持情緒模式一致。
 - 你是病人，不是醫生，不要使用醫療術語。
 - 回答要簡短自然，1-3 句，最多 40 字。
 - 如果醫學生提到「癌」、「腫瘤」、「惡性」等字眼，表現出震驚。
@@ -1680,7 +2233,7 @@ def get_voice_system_prompt(case_id: str, emotion_mode: str) -> str:
 
 ### 回覆規則
 - 【最重要】你是家屬，等待醫學生先開口。絕對不要主動先說話，必須等醫學生開始對話。
-- 只用繁體中文口語對話，保持情緒模式一致。
+- 可用繁體中文或英文對話；請依醫學生使用的語言回覆，並保持情緒模式一致。
 - 你是家屬，不是醫生，不要使用醫療術語。
 - 回答要簡短自然，1-3 句，最多 40 字。
 - 回答要貼近真實：短句、口語，如「對」「沒有耶」「我不知道」「那現在怎麼辦」。
@@ -1688,7 +2241,7 @@ def get_voice_system_prompt(case_id: str, emotion_mode: str) -> str:
 - 若醫學生過度保證，依情緒模式做出質疑或不安。
 - 適時表達擔心、焦慮，詢問爸爸的狀況。"""
     
-    return "你是一位標準化病人/家屬，請用繁體中文回答。"
+    return "你是一位標準化病人/家屬，請依醫學生使用的語言，以繁體中文或英文回答。"
 
 
 def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, role_label: str, time_limit_seconds: int = 0) -> str:
@@ -1763,6 +2316,7 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
         <script>
             const API_KEY = '{api_key}';
             const SYSTEM_PROMPT = `{escaped_prompt}`;
+            const REALTIME_MODEL = '{REALTIME_MODEL}';
             const VOICE = '{voice}';
             const ROLE_LABEL = '{role_label}';
             const TIME_LIMIT_SECONDS = {time_limit_seconds};
@@ -1790,6 +2344,19 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
             const infoBox = document.getElementById('info-box');
             const canvas = document.getElementById('audio-visualizer');
             const canvasCtx = canvas.getContext('2d');
+
+            async function readOpenAIError(response) {{
+                let details = '';
+                try {{
+                    const data = await response.json();
+                    details = data?.error?.message || data?.message || JSON.stringify(data);
+                }} catch(e) {{
+                    try {{
+                        details = await response.text();
+                    }} catch(_) {{}}
+                }}
+                return 'HTTP ' + response.status + (details ? ' - ' + details : '');
+            }}
             
             // 初始化顯示
             if (TIME_LIMIT_SECONDS > 0) {{
@@ -1911,16 +2478,33 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
                     try {{ localStorage.removeItem("rt_conversation_data"); }} catch(e) {{}}
                     renderMessages();
                     
-                    const tokenResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {{
+                    const sessionConfig = {{
+                        session: {{
+                            type: 'realtime',
+                            model: REALTIME_MODEL,
+                            audio: {{
+                                output: {{
+                                    voice: VOICE
+                                }}
+                            }}
+                        }}
+                    }};
+
+                    const tokenResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {{
                         method: 'POST',
                         headers: {{ 'Authorization': 'Bearer ' + API_KEY, 'Content-Type': 'application/json' }},
-                        body: JSON.stringify({{ model: 'gpt-4o-realtime-preview-2024-12-17', voice: VOICE }}),
+                        body: JSON.stringify(sessionConfig),
                     }});
                     
-                    if (!tokenResponse.ok) throw new Error('無法獲取 session token');
+                    if (!tokenResponse.ok) {{
+                        throw new Error('無法獲取 session token：' + await readOpenAIError(tokenResponse));
+                    }}
                     
                     const tokenData = await tokenResponse.json();
-                    const ephemeralKey = tokenData.client_secret.value;
+                    const ephemeralKey = tokenData.value || tokenData.client_secret?.value || tokenData.session?.client_secret?.value;
+                    if (!ephemeralKey) {{
+                        throw new Error('OpenAI 未回傳 session token：' + JSON.stringify(tokenData));
+                    }}
                     
                     peerConnection = new RTCPeerConnection();
                     
@@ -1942,16 +2526,20 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
                         dataChannel.send(JSON.stringify({{
                             type: 'session.update',
                             session: {{ 
+                                type: 'realtime',
                                 instructions: SYSTEM_PROMPT, 
-                                input_audio_transcription: {{ 
-                                    model: 'whisper-1',
-                                    language: 'zh'
-                                }},
-                                turn_detection: {{
-                                    type: 'server_vad',
-                                    threshold: 0.5,
-                                    prefix_padding_ms: 500,
-                                    silence_duration_ms: 2000
+                                audio: {{
+                                    input: {{
+                                        transcription: {{
+                                            model: 'whisper-1'
+                                        }},
+                                        turn_detection: {{
+                                            type: 'server_vad',
+                                            threshold: 0.5,
+                                            prefix_padding_ms: 500,
+                                            silence_duration_ms: 2000
+                                        }}
+                                    }}
                                 }}
                             }}
                         }}));
@@ -1962,13 +2550,15 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
                     
-                    const sdpResponse = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17', {{
+                    const sdpResponse = await fetch('https://api.openai.com/v1/realtime/calls', {{
                         method: 'POST',
                         headers: {{ 'Authorization': 'Bearer ' + ephemeralKey, 'Content-Type': 'application/sdp' }},
                         body: offer.sdp,
                     }});
                     
-                    if (!sdpResponse.ok) throw new Error('無法建立 WebRTC 連接');
+                    if (!sdpResponse.ok) {{
+                        throw new Error('無法建立 WebRTC 連接：' + await readOpenAIError(sdpResponse));
+                    }}
                     
                     await peerConnection.setRemoteDescription({{ type: 'answer', sdp: await sdpResponse.text() }});
                     
@@ -2012,10 +2602,19 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
                     }}
                 }}
                 else if (type === 'response.created') {{
-                    pendingAssistantTranscript = {{ seq: ++messageSequence }};
+                    pendingAssistantTranscript = {{ seq: ++messageSequence, text: '' }};
                 }}
-                else if (type === 'response.audio_transcript.done') {{
-                    const transcript = event.transcript;
+                else if (type === 'response.output_audio_transcript.delta' || type === 'response.audio_transcript.delta') {{
+                    const delta = event.delta || '';
+                    if (delta) {{
+                        if (!pendingAssistantTranscript) {{
+                            pendingAssistantTranscript = {{ seq: ++messageSequence, text: '' }};
+                        }}
+                        pendingAssistantTranscript.text = (pendingAssistantTranscript.text || '') + delta;
+                    }}
+                }}
+                else if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done') {{
+                    const transcript = event.transcript || pendingAssistantTranscript?.text || '';
                     if (transcript && pendingAssistantTranscript) {{
                         addMessage('assistant', transcript, pendingAssistantTranscript.seq);
                         pendingAssistantTranscript = null;
@@ -2024,7 +2623,7 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
                     }}
                     updateStatus('connected', '已連接 - 請繼續說話');
                 }}
-                else if (type === 'response.audio.delta') {{
+                else if (type === 'response.output_audio.delta' || type === 'response.audio.delta') {{
                     updateStatus('ai-speaking', 'AI 正在回答...');
                 }}
                 else if (type === 'error') {{
@@ -2110,7 +2709,7 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
 # =========================================================
 if st.session_state.voice_mode:
     # 語音模式介面
-    st.markdown("### 🎤 即時語音對話")
+    st.markdown("### 🎤 Real-time Voice" if st.session_state.get("ui_language")=="English" else "### 🎤 即時語音對話")
     
     # 時間限制設定（在語音介面上方）
     col_time1, col_time2 = st.columns([3, 1])
@@ -2132,21 +2731,23 @@ if st.session_state.voice_mode:
     st.info("點擊「開始對話」後允許使用麥克風，直接說話即可。結束後點擊「結束對話」，再按下方按鈕產生評分。")
     
     # 渲染語音組件
-    voice_system_prompt = get_voice_system_prompt(selected_case, st.session_state.emotion_mode)
+    voice_system_prompt = apply_language_adaptive_rules(
+        get_voice_system_prompt(selected_case, st.session_state.emotion_mode)
+    )
     time_limit_secs = voice_time_limit * 60 if voice_time_limit else 0
     voice_html = create_realtime_voice_html(
-        api_key=st.session_state.openai_api_key,
+        api_key=st.session_state.active_api_key or st.session_state.openai_api_key,
         system_prompt=voice_system_prompt,
         voice=st.session_state.voice_selected,
         role_label=ROLE_LABEL,
         time_limit_seconds=time_limit_secs,
     )
-    components.html(voice_html, height=550, scrolling=True)
+    st.iframe(voice_html, height=550)
     
     st.markdown("---")
     
     # 對話記錄輸入區
-    st.markdown("### 📋 貼上對話記錄")
+    st.markdown("### 📋 Paste Conversation Log" if st.session_state.get("ui_language")=="English" else "### 📋 貼上對話記錄")
     st.caption("對話結束後，點擊上方「📋 複製對話記錄」按鈕，然後貼到下方輸入框")
     
     # 使用兩欄佈局：左邊輸入框，右邊讀取按鈕
@@ -2162,7 +2763,7 @@ if st.session_state.voice_mode:
         )
     
     with col_btn:
-        read_btn = st.button("📥 讀取", type="primary", use_container_width=True)
+        read_btn = st.button(_t("📥 讀取"), type="primary", use_container_width=True)
     
     # 點擊讀取按鈕或自動偵測
     if (read_btn or voice_data_input) and not st.session_state.voice_conversation_ended:
@@ -2175,6 +2776,17 @@ if st.session_state.voice_mode:
                     st.session_state.voice_messages = voice_messages
                     st.session_state.voice_duration = voice_duration
                     st.session_state.voice_conversation_ended = True
+                    st.session_state.messages = []
+                    st.session_state.last_evaluation = None
+                    st.session_state.last_evaluation_error = None
+                    st.session_state.pending_evaluation = False
+                    st.session_state.pending_english_feedback = False
+                    st.session_state.feedback_output_mode = "chinese"
+                    st.session_state.steps_feedback = None
+                    st.session_state.spikes_feedback = None
+                    st.session_state.shair_feedback = None
+                    st.session_state.english_feedback_report = None
+                    st.session_state.english_feedback_error = None
                     st.rerun()
                 elif read_btn:
                     st.warning("⚠️ 對話記錄中沒有訊息")
@@ -2193,19 +2805,31 @@ if st.session_state.voice_mode:
                 st.markdown(f"**{role}**: {msg.get('content', '')}")
         
         if not st.session_state.last_evaluation:
-            if st.button("📊 產生評分與回饋", type="primary", use_container_width=True, key="voice_eval_btn"):
-                # 將語音對話訊息複製到 messages 以便使用現有評分邏輯
-                st.session_state.messages = [
-                    {"role": m.get("role"), "content": m.get("content", "")}
-                    for m in st.session_state.voice_messages
-                ]
-                st.session_state.pending_evaluation = True
-                if st.session_state.conversation_started_at is None:
-                    st.session_state.conversation_started_at = time.time() - st.session_state.voice_duration
-                st.rerun()
+            eval_col, english_col = st.columns(2)
+            with eval_col:
+                if st.button(
+                    "📊 產生評分與回饋",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=st.session_state.pending_evaluation,
+                    key="voice_eval_btn",
+                ):
+                    sync_voice_messages_to_conversation()
+                    st.session_state.pending_evaluation = True
+                    st.rerun()
+            with english_col:
+                if st.button(
+                    "Generate English Version: Evaluation and Feedback",
+                    type="secondary",
+                    use_container_width=True,
+                    disabled=st.session_state.pending_evaluation or st.session_state.pending_english_feedback,
+                    key="voice_english_eval_btn",
+                ):
+                    request_english_feedback()
+                    st.rerun()
         
         # 重新開始語音對話按鈕
-        if st.button("🔄 重新開始語音對話", type="secondary", key="voice_restart_btn"):
+        if st.button(_t("🔄 重新開始語音對話"), type="secondary", key="voice_restart_btn"):
             reset_voice_mode()
             st.rerun()
 
@@ -2222,6 +2846,7 @@ if st.session_state.pending_evaluation:
     if st.session_state.messages:
         with st.spinner("評分與回饋產生中..."):
             try:
+                st.session_state.feedback_output_mode = "chinese"
                 evaluation_result = generate_conversation_evaluation(st.session_state.messages)
                 st.session_state.last_evaluation = {
                     "timestamp": datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -2229,13 +2854,82 @@ if st.session_state.pending_evaluation:
                     "raw_text": evaluation_result["raw_text"],
                 }
                 st.session_state.last_evaluation_error = None
+                st.session_state.english_feedback_report = None
+                st.session_state.english_feedback_error = None
             except Exception as exc:
                 st.session_state.last_evaluation = None
                 st.session_state.last_evaluation_error = str(exc)
+                st.session_state.english_feedback_report = None
+                st.session_state.english_feedback_error = None
+                st.session_state.pending_english_feedback = False
     st.session_state.pending_evaluation = False
 
+if st.session_state.pending_english_feedback:
+    if st.session_state.messages:
+        with st.spinner("Generating English scoring feedback..."):
+            try:
+                st.session_state.feedback_output_mode = "english"
+                if st.session_state.last_evaluation is None:
+                    evaluation_result = generate_conversation_evaluation(st.session_state.messages)
+                    st.session_state.last_evaluation = {
+                        "timestamp": datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"),
+                        "structured": evaluation_result["structured"],
+                        "raw_text": evaluation_result["raw_text"],
+                    }
+                latest_eval_for_english = st.session_state.last_evaluation
+                structured_for_english = latest_eval_for_english.get("structured", {})
+                score_rows_for_english = build_score_rows(structured_for_english)
+                strengths_for_english, gaps_for_english = extract_score_highlights(score_rows_for_english)
+                user_info_for_english = {
+                    "identity": st.session_state.get("user_identity", ""),
+                    "group": st.session_state.get("user_group", ""),
+                    "serial": st.session_state.get("user_serial", ""),
+                }
+                st.session_state.english_feedback_report = build_english_feedback_report(
+                    st.session_state.messages,
+                    latest_eval_for_english,
+                    st.session_state.stage,
+                    st.session_state.emotion_mode,
+                    strengths_for_english,
+                    gaps_for_english,
+                    "",
+                    "",
+                    "",
+                    case_name=case_info.get('name', ''),
+                    user_info=user_info_for_english,
+                )
+                st.session_state.last_evaluation_error = None
+                st.session_state.english_feedback_error = None
+            except Exception as exc:
+                st.session_state.english_feedback_report = None
+                st.session_state.english_feedback_error = str(exc)
+            finally:
+                st.session_state.pending_english_feedback = False
+    else:
+        st.session_state.english_feedback_error = "No conversation is available for English scoring feedback."
+        st.session_state.pending_english_feedback = False
+
 # 顯示評分結果
-if st.session_state.last_evaluation_error:
+english_output_mode = st.session_state.get("feedback_output_mode") == "english"
+if english_output_mode:
+    if st.session_state.english_feedback_error:
+        st.error(f"⚠️ English feedback generation failed: {st.session_state.english_feedback_error}")
+    if st.session_state.english_feedback_report:
+        english_report_text = st.session_state.english_feedback_report.decode("utf-8", errors="replace")
+        st.success("✅ English scoring feedback is ready.")
+        st.markdown("### English Scoring Feedback")
+        st.markdown(english_report_text)
+        english_user_suffix = ""
+        if st.session_state.get("user_identity") or st.session_state.get("user_group") or st.session_state.get("user_serial"):
+            english_user_suffix = f"_{st.session_state.get('user_identity', '')}_{st.session_state.get('user_group', '')}_{st.session_state.get('user_serial', '')}"
+        english_case_prefix = "NPC" if selected_case == "npc" else "AbdominalPain" if selected_case == "abdominal_pain" else "Conversation"
+        st.download_button(
+            "📥 Download English Scoring Feedback",
+            data=st.session_state.english_feedback_report,
+            file_name=f"{english_case_prefix}_English_Feedback_{datetime.now(TZ).strftime('%Y%m%d_%H%M%S')}{english_user_suffix}.txt",
+            mime="text/plain",
+        )
+elif st.session_state.last_evaluation_error:
     st.error(f"⚠️ 產生評分時發生錯誤：{st.session_state.last_evaluation_error}")
 elif st.session_state.last_evaluation:
     latest_eval = st.session_state.last_evaluation
@@ -2245,7 +2939,8 @@ elif st.session_state.last_evaluation:
     st.success(f"✅ 已於 {latest_eval['timestamp']} 完成評分與回饋。")
     
     col_total, col_rating = st.columns(2)
-    col_total.metric("項目評分總分", overall.get("total_score", "N/A"))
+    max_score = get_evaluation_max_score(structured_eval)
+    col_total.metric(_t("項目評分總分"), format_total_score(overall.get("total_score"), max_score))
     
     rating_5 = overall.get("rating_1_to_5", {}) or {}
     r5_score = rating_5.get("score")
@@ -2257,7 +2952,7 @@ elif st.session_state.last_evaluation:
             r5_display = f"{s} {mapping.get(s, '')}".strip()
         except:
             r5_display = str(r5_score)
-    col_rating.metric("1-5 級整體表現", r5_display)
+    col_rating.metric(_t("1-5 級整體表現"), r5_display)
     
     brief = structured_eval.get("brief_feedback")
     if brief:
@@ -2302,12 +2997,12 @@ elif st.session_state.last_evaluation:
         return n
     
     if strengths:
-        st.markdown("**亮點項目**：" + "、".join(_clean_name(r["項目"]) for r in strengths if r.get("項目")))
+        st.markdown(f"**{_t('亮點項目')}**：" + "、".join(_clean_name(r["項目"]) for r in strengths if r.get("項目")))
     else:
         st.markdown("**亮點項目**：尚未顯著亮點")
     
     if gaps:
-        st.markdown("**優先改善**：" + "、".join(_clean_name(r["項目"]) for r in gaps if r.get("項目")))
+        st.markdown(f"**{_t('優先改善')}**：" + "、".join(_clean_name(r["項目"]) for r in gaps if r.get("項目")))
     else:
         st.markdown("**優先改善**：無明顯低分項目")
     
@@ -2329,13 +3024,13 @@ elif st.session_state.last_evaluation:
         shair_feedback = st.session_state.shair_feedback
     
     # 回饋順序：STEPS → SPIKES → SHAIR
-    st.markdown("**STEPS 回饋**：")
+    st.markdown(f"**{_t('STEPS 回饋')}**：")
     st.write(steps_feedback)
     
-    st.markdown("**SPIKES 回饋**：")
+    st.markdown(f"**{_t('SPIKES 回饋')}**：")
     st.write(spikes_feedback)
     
-    st.markdown("**SHAIR 回饋**：")
+    st.markdown(f"**{_t('SHAIR 回饋')}**：")
     st.write(shair_feedback)
     
     # 組合使用者資訊
@@ -2368,12 +3063,12 @@ elif st.session_state.last_evaluation:
     if user_info.get("identity") or user_info.get("group") or user_info.get("serial"):
         user_suffix = f"_{user_info.get('identity', '')}_{user_info.get('group', '')}_{user_info.get('serial', '')}"
     st.download_button(
-        "📥 下載對話及評分回饋",
+        _t("📥 下載對話及評分回饋"),
         data=combined_bytes,
         file_name=f"{case_prefix}_評分回饋_{datetime.now(TZ).strftime('%Y%m%d_%H%M%S')}{user_suffix}.txt",
         mime="text/plain",
     )
-    
+
     # 自動記錄並上傳到 Google Drive
     if not st.session_state.logged_this_session:
         with st.spinner("正在儲存記錄並上傳到 Google Drive..."):
@@ -2421,7 +3116,7 @@ elif st.session_state.last_evaluation:
         
         csv_buffer = io.StringIO()
         csv_writer = csv.writer(csv_buffer)
-        csv_writer.writerow(["項目", "得分", "說明", "評分理由"])
+        csv_writer.writerow(["Item", "Score", "Detail", "Rationale"] if st.session_state.get("ui_language")=="English" else ["項目", "得分", "說明", "評分理由"])
         for row in score_rows:
             csv_writer.writerow([
                 row.get("項目", ""),
@@ -2433,7 +3128,7 @@ elif st.session_state.last_evaluation:
         # 加上 UTF-8 BOM 避免 Excel 開啟時中文亂碼
         csv_bytes = b'\xef\xbb\xbf' + csv_buffer.getvalue().encode("utf-8")
         st.download_button(
-            "📥 下載評分明細 (CSV)",
+            _t("📥 下載評分明細 (CSV)"),
             data=csv_bytes,
             file_name=f"評分明細_{selected_case}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{user_suffix}.csv",
             mime="text/csv",
@@ -2777,8 +3472,8 @@ if not st.session_state.voice_mode:
         </script>
         """
         
-        # 使用 components.html 顯示語音辨識介面
-        components.html(voice_input_html, height=280)
+        # 使用 st.iframe 顯示語音辨識介面
+        st.iframe(voice_input_html, height=280)
         
         # 使用 form 來處理提交
         with st.form(key="voice_input_form", clear_on_submit=True):
@@ -2800,7 +3495,7 @@ if not st.session_state.voice_mode:
             prompt = None
     else:
         # 純文字模式
-        prompt = st.chat_input("請輸入您的問診內容...")
+        prompt = st.chat_input(_t("請輸入您的問診內容..."))
 
     # 處理輸入
     if prompt:
@@ -2811,10 +3506,14 @@ if not st.session_state.voice_mode:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.session_state.last_evaluation = None
         st.session_state.last_evaluation_error = None
+        st.session_state.pending_english_feedback = False
+        st.session_state.feedback_output_mode = "chinese"
         # 清除舊的回饋（因為對話內容變了）
         st.session_state.steps_feedback = None
         st.session_state.spikes_feedback = None
         st.session_state.shair_feedback = None
+        st.session_state.english_feedback_report = None
+        st.session_state.english_feedback_error = None
         
         # 語音輸入模式：清除暫存文字
         if st.session_state.voice_input_mode:
@@ -2899,8 +3598,8 @@ if st.session_state.get("pending_tts_audio") and st.session_state.voice_input_mo
         <source src="data:audio/mp3;base64,{st.session_state.pending_tts_audio}" type="audio/mp3">
     </audio>
     """
-    components.html(audio_html, height=0)
+    st.iframe(audio_html, height=1)
     st.session_state.pending_tts_audio = None  # 清除，避免重複播放
 
 st.divider()
-st.caption(f"📚 教案：{case_info['name']}")
+st.caption(f"📚 {_t('教案：')}{_t(case_info['name'])}")

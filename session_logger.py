@@ -49,7 +49,7 @@ class SessionLogger:
         text = re.sub(r"<[^>]+>", "", content)
         lines = []
         for line in text.splitlines():
-            if any(key in line for key in ("情緒狀態：", "強度：", "💭")):
+            if any(key in line for key in ("情緒狀態：", "強度：", "💭", "Emotion State:", "Intensity:")):
                 continue
             lines.append(line)
         text = "\n".join(lines)
