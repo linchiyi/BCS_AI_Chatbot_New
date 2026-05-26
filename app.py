@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from openai import AuthenticationError, OpenAI
 
@@ -304,6 +305,49 @@ EN_DICT = {
     "腹痛 8 小時": "Abdominal pain x 8 hrs",
     "發燒": "Fever",
     "血壓低": "Low blood pressure",
+    "點擊「開始錄音」說話，再點一次停止。可修改文字後點擊「送出」，AI 會語音回覆。": "Click 'Start Recording' to speak, click again to stop. You can edit the text before clicking 'Send Message', and the AI will reply with voice.",
+    "⏱️ 對話時間限制（分鐘，0 表示無限制）": "⏱️ Time Limit (mins, 0=unlimited)",
+    "限時": "Time Limit",
+    "無限制": "Unlimited",
+    "點擊「開始對話」後允許使用麥克風，直接說話即可。結束後點擊「結束對話」，再按下方按鈕產生評分。": "Click 'Start Conversation' and allow microphone access to speak directly. Click 'End Conversation' when finished, then click the button below to generate feedback.",
+    "對話結束後，點擊上方「📋 複製對話記錄」按鈕，然後貼到下方輸入框": "After the conversation ends, click the '📋 Copy Conversation Log' button above and paste it into the input box below.",
+    "準備就緒": "Ready",
+    "🎤 開始對話": "🎤 Start Conversation",
+    "⏹️ 結束對話": "⏹️ End Conversation",
+    "對話記錄將顯示在這裡": "Conversation transcript will appear here",
+    "正在連接...": "Connecting...",
+    "正在建立連接...": "Establishing connection...",
+    "已連接 - 請開始說話": "Connected - please start speaking",
+    "連接成功！請直接說話，AI 會即時回應。": "Connection successful! Speak directly, the AI will respond in real-time.",
+    "對話已結束": "Conversation ended",
+    "✅ 對話已結束": "✅ Conversation ended",
+    "📋 複製對話記錄": "📋 Copy Conversation Log",
+    "點擊複製後，請貼到下方輸入框中": "After copying, paste it into the input box below",
+    "⏰ 時間到！對話自動結束。": "⏰ Time is up! Conversation ended automatically.",
+    "無法獲取 session token：": "Failed to get session token: ",
+    "OpenAI 未回傳 session token：": "OpenAI did not return session token: ",
+    "無法建立 WebRTC 連接：": "Failed to establish WebRTC connection: ",
+    "API Key 格式不正確": "Invalid API Key format",
+    "已經複製到剪貼簿！": "Copied to clipboard!",
+    "複製失敗：": "Failed to copy: ",
+    "醫學生": "Medical Student",
+    "點擊「開始對話」後允許使用麥克風，對話限時 <b>": "Click 'Start Conversation' and allow microphone access. Time limit is <b>",
+    " 分鐘</b>。": " mins</b>.",
+    "點擊「開始對話」後允許使用麥克風，然後直接說話，AI 會即時回應。": "Click 'Start Conversation' and allow microphone access, then speak directly. The AI will respond in real-time.",
+    "語音輸入模式": "Voice Input Mode",
+    "點擊按鈕開始錄音": "Click button to start recording",
+    "語音辨識結果會顯示在這裡，您可以修改後點擊「填入下方」...": "Speech recognition results will appear here. Edit if needed, then click 'Copy Text'...",
+    "⚠️ 您的瀏覽器不支援語音辨識功能。請使用 Chrome 或 Edge 瀏覽器。": "⚠️ Browser not supported for speech recognition. Use Chrome or Edge.",
+    "正在聆聽... 再點一次停止": "Listening... click again to stop",
+    "辨識錯誤: ": "Recognition error: ",
+    "✓ 辨識完成！可修改文字後點擊送出": "✓ Recognition complete! Edit text then send",
+    "已清除，點擊按鈕開始錄音": "Cleared. Click button to start recording",
+    "⏳ 正在複製文字...": "⏳ Copying text...",
+    "已複製！": "Copied! ",
+    "請點擊下方輸入框，按 ": "Click the input box below, press ",
+    " 貼上，再點送出": " to paste, then click Send",
+    "👆 點擊上方「複製文字」後，在此按 Ctrl+V 貼上，再點「送出訊息」": "👆 Click 'Copy Text' above, paste here (Ctrl+V), then click 'Send Message'",
+    "分鐘": "mins",
 }
 
 def _t(text):
@@ -495,6 +539,7 @@ if not st.session_state.case_confirmed:
         st.session_state.user_group = st.selectbox(
             _t("組別"),
             options=group_options,
+            format_func=lambda x: f"Group {x[1:-1]}" if st.session_state.get("ui_language")=="English" else x,
             index=group_options.index(st.session_state.user_group) if st.session_state.user_group in group_options else 0,
             help="請選擇您的組別（第1組~第18組）"
         )
@@ -737,7 +782,7 @@ def render_live_timer(start_timestamp: float | None, limit_minutes: int, already
         fixed_elapsed_ms = None
     limit_ms = int(limit_minutes * 60 * 1000) if limit_minutes else 0
     triggered_literal = "true" if already_triggered else "false"
-    st.iframe(
+    components.html(
         f"""
         <div class="timer-box">
             <div class="timer-label">{_t('對話經過時間')}</div>
@@ -1225,11 +1270,11 @@ def _format_conversation_for_model(messages) -> str:
 
 LANGUAGE_ADAPTIVE_RULES = """
 
-### 語言規則（優先遵守）
-- 可以使用繁體中文或英文對話。
-- 若醫學生使用英文，請以自然英文回答；若醫學生使用繁體中文，請以繁體中文回答。
-- 若醫學生明確要求切換語言，請依其要求切換。
-- 即使使用英文，也必須維持同一個標準化病人/家屬角色、情緒模式、資訊揭露限制與簡短口語回覆。
+### LANGUAGE MATCHING RULES (CRITICAL / 語言規則優先遵守)
+- You MUST mirror the user's language EXACTLY.
+- If the user (medical student) speaks English, you MUST reply ENTIRELY in English. Do NOT use any Chinese words.
+- 若醫學生使用繁體中文，請以繁體中文回答。
+- 即使使用英文，也必須維持同一個角色設定、情緒模式與簡短口語回覆 (Even if speaking English, strictly maintain your persona, emotion, and short, natural responses).
 """.strip()
 
 
@@ -2201,7 +2246,7 @@ def get_voice_system_prompt(case_id: str, emotion_mode: str) -> str:
 
 ### 回覆規則
 - 【最重要】你是病人，等待醫學生先開口。絕對不要主動先說話，必須等醫學生開始對話。
-- 可用繁體中文或英文對話；請依醫學生使用的語言回覆，並保持情緒模式一致。
+- CRITICAL: You must reply in the EXACT SAME LANGUAGE the user speaks. If they speak English, reply in English. 如果他們說中文，就用中文回覆。
 - 你是病人，不是醫生，不要使用醫療術語。
 - 回答要簡短自然，1-3 句，最多 40 字。
 - 如果醫學生提到「癌」、「腫瘤」、「惡性」等字眼，表現出震驚。
@@ -2233,7 +2278,7 @@ def get_voice_system_prompt(case_id: str, emotion_mode: str) -> str:
 
 ### 回覆規則
 - 【最重要】你是家屬，等待醫學生先開口。絕對不要主動先說話，必須等醫學生開始對話。
-- 可用繁體中文或英文對話；請依醫學生使用的語言回覆，並保持情緒模式一致。
+- CRITICAL: You must reply in the EXACT SAME LANGUAGE the user speaks. If they speak English, reply in English. 如果他們說中文，就用中文回覆。
 - 你是家屬，不是醫生，不要使用醫療術語。
 - 回答要簡短自然，1-3 句，最多 40 字。
 - 回答要貼近真實：短句、口語，如「對」「沒有耶」「我不知道」「那現在怎麼辦」。
@@ -2246,11 +2291,10 @@ def get_voice_system_prompt(case_id: str, emotion_mode: str) -> str:
 
 def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, role_label: str, time_limit_seconds: int = 0) -> str:
     """建立即時語音對話的 HTML 組件
-    
-    Args:
-        time_limit_seconds: 時間限制（秒），0 表示無限制
+    使用 WebRTC 連接到 OpenAI Realtime API
     """
-    escaped_prompt = system_prompt.replace('`', "'").replace('$', '').replace('\\', '\\\\')
+    import json
+    escaped_prompt = system_prompt.replace('`', '\\`').replace('${', '\\${')
     
     html_content = f"""
     <!DOCTYPE html>
@@ -2363,10 +2407,10 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
                 const mins = String(Math.floor(TIME_LIMIT_SECONDS / 60)).padStart(2, '0');
                 const secs = String(TIME_LIMIT_SECONDS % 60).padStart(2, '0');
                 timerDisplay.textContent = mins + ':' + secs;
-                infoBox.innerHTML = '點擊「開始對話」後允許使用麥克風，對話限時 <b>' + Math.floor(TIME_LIMIT_SECONDS / 60) + ' 分鐘</b>。';
+                infoBox.innerHTML = "點擊「開始對話」後允許使用麥克風，對話限時 <b>" + Math.floor(TIME_LIMIT_SECONDS / 60) + " 分鐘</b>。";
             }} else {{
                 timerDisplay.textContent = '00:00';
-                infoBox.textContent = '點擊「開始對話」後允許使用麥克風，然後直接說話，AI 會即時回應。';
+                infoBox.textContent = "點擊「開始對話」後允許使用麥克風，然後直接說話，AI 會即時回應。";
             }}
             
             // 清除之前的對話記錄
@@ -2701,6 +2745,35 @@ def create_realtime_voice_html(api_key: str, system_prompt: str, voice: str, rol
     </body>
     </html>
     """
+    
+    rt_replacements = {
+        "準備就緒": _t("準備就緒"),
+        "🎤 開始對話": _t("🎤 開始對話"),
+        "⏹️ 結束對話": _t("⏹️ 結束對話"),
+        "對話記錄將顯示在這裡": _t("對話記錄將顯示在這裡"),
+        "正在連接...": _t("正在連接..."),
+        "正在建立連接...": _t("正在建立連接..."),
+        "已連接 - 請開始說話": _t("已連接 - 請開始說話"),
+        "連接成功！請直接說話，AI 會即時回應。": _t("連接成功！請直接說話，AI 會即時回應。"),
+        "對話已結束": _t("對話已結束"),
+        "✅ 對話已結束": _t("✅ 對話已結束"),
+        "📋 複製對話記錄": _t("📋 複製對話記錄"),
+        "點擊複製後，請貼到下方輸入框中": _t("點擊複製後，請貼到下方輸入框中"),
+        "⏰ 時間到！對話自動結束。": _t("⏰ 時間到！對話自動結束。"),
+        "無法獲取 session token：": _t("無法獲取 session token："),
+        "OpenAI 未回傳 session token：": _t("OpenAI 未回傳 session token："),
+        "無法建立 WebRTC 連接：": _t("無法建立 WebRTC 連接："),
+        "API Key 格式不正確": _t("API Key 格式不正確"),
+        "已經複製到剪貼簿！": _t("已經複製到剪貼簿！"),
+        "複製失敗：": _t("複製失敗："),
+        "醫學生": _t("醫學生"),
+        "點擊「開始對話」後允許使用麥克風，對話限時 <b>": _t("點擊「開始對話」後允許使用麥克風，對話限時 <b>"),
+        " 分鐘</b>。": _t(" 分鐘</b>。"),
+        "點擊「開始對話」後允許使用麥克風，然後直接說話，AI 會即時回應。": _t("點擊「開始對話」後允許使用麥克風，然後直接說話，AI 會即時回應。"),
+    }
+    for k, v in rt_replacements.items():
+        html_content = html_content.replace(k, v)
+        
     return html_content
 
 
@@ -2715,7 +2788,7 @@ if st.session_state.voice_mode:
     col_time1, col_time2 = st.columns([3, 1])
     with col_time1:
         voice_time_limit = st.slider(
-            "⏱️ 對話時間限制（分鐘，0 表示無限制）",
+            _t("⏱️ 對話時間限制（分鐘，0 表示無限制）"),
             min_value=0,
             max_value=20,
             value=st.session_state.timer_limit_minutes if st.session_state.timer_limit_minutes <= 20 else 7,
@@ -2724,11 +2797,11 @@ if st.session_state.voice_mode:
         st.session_state.timer_limit_minutes = voice_time_limit
     with col_time2:
         if voice_time_limit > 0:
-            st.metric("限時", f"{voice_time_limit} 分鐘")
+            st.metric(_t("限時"), f"{voice_time_limit} {_t('分鐘')}")
         else:
-            st.metric("限時", "無限制")
+            st.metric(_t("限時"), _t("無限制"))
     
-    st.info("點擊「開始對話」後允許使用麥克風，直接說話即可。結束後點擊「結束對話」，再按下方按鈕產生評分。")
+    st.info(_t("點擊「開始對話」後允許使用麥克風，直接說話即可。結束後點擊「結束對話」，再按下方按鈕產生評分。"))
     
     # 渲染語音組件
     voice_system_prompt = apply_language_adaptive_rules(
@@ -2742,24 +2815,24 @@ if st.session_state.voice_mode:
         role_label=ROLE_LABEL,
         time_limit_seconds=time_limit_secs,
     )
-    st.iframe(voice_html, height=550)
+    components.html(voice_html, height=550)
     
     st.markdown("---")
     
     # 對話記錄輸入區
     st.markdown("### 📋 Paste Conversation Log" if st.session_state.get("ui_language")=="English" else "### 📋 貼上對話記錄")
-    st.caption("對話結束後，點擊上方「📋 複製對話記錄」按鈕，然後貼到下方輸入框")
+    st.caption(_t("對話結束後，點擊上方「📋 複製對話記錄」按鈕，然後貼到下方輸入框"))
     
     # 使用兩欄佈局：左邊輸入框，右邊讀取按鈕
     col_input, col_btn = st.columns([4, 1])
     
     with col_input:
         voice_data_input = st.text_input(
-            "對話記錄 (JSON)",
+            _t("對話記錄 (JSON)"),
             value="",
             key="voice_data_input",
             label_visibility="collapsed",
-            placeholder="貼上對話記錄 JSON..."
+            placeholder=_t("對話記錄 (JSON)") + "..."
         )
     
     with col_btn:
@@ -3146,8 +3219,8 @@ if not st.session_state.voice_mode:
         st.markdown("---")
         
         # 說明
-        st.markdown("### 🎙️ 語音輸入模式")
-        st.caption("點擊「開始錄音」說話，再點一次停止。可修改文字後點擊「送出」，AI 會語音回覆。")
+        st.markdown(f"### 🎙️ {_t('語音輸入模式')}")
+        st.caption(_t("點擊「開始錄音」說話，再點一次停止。可修改文字後點擊「送出」，AI 會語音回覆。"))
         
         # 初始化 voice_input_submitted
         if "voice_input_submitted" not in st.session_state:
@@ -3472,22 +3545,43 @@ if not st.session_state.voice_mode:
         </script>
         """
         
+        # 套用翻譯到 voice_input_html
+        replacements = {
+            "🎙️ 開始錄音": _t("🎙️ 開始錄音"),
+            "點擊按鈕開始錄音": _t("點擊按鈕開始錄音"),
+            "語音辨識結果會顯示在這裡，您可以修改後點擊「填入下方」...": _t("語音辨識結果會顯示在這裡，您可以修改後點擊「填入下方」..."),
+            "🗑️ 清除": _t("🗑️ 清除"),
+            "📋 複製文字": _t("📋 複製文字"),
+            "⚠️ 您的瀏覽器不支援語音辨識功能。請使用 Chrome 或 Edge 瀏覽器。": _t("⚠️ 您的瀏覽器不支援語音辨識功能。請使用 Chrome 或 Edge 瀏覽器。"),
+            "⏹️ 停止錄音": _t("⏹️ 停止錄音"),
+            "正在聆聽... 再點一次停止": _t("正在聆聽... 再點一次停止"),
+            "辨識錯誤: ": _t("辨識錯誤: "),
+            "✓ 辨識完成！可修改文字後點擊送出": _t("✓ 辨識完成！可修改文字後點擊送出"),
+            "已清除，點擊按鈕開始錄音": _t("已清除，點擊按鈕開始錄音"),
+            "⏳ 正在複製文字...": _t("⏳ 正在複製文字..."),
+            "已複製！": _t("已複製！"),
+            "請點擊下方輸入框，按 ": _t("請點擊下方輸入框，按 "),
+            " 貼上，再點送出": _t(" 貼上，再點送出"),
+        }
+        for k, v in replacements.items():
+            voice_input_html = voice_input_html.replace(k, v)
+            
         # 使用 st.iframe 顯示語音辨識介面
-        st.iframe(voice_input_html, height=280)
+        components.html(voice_input_html, height=280)
         
         # 使用 form 來處理提交
         with st.form(key="voice_input_form", clear_on_submit=True):
             voice_text_input = st.text_area(
-                "輸入訊息",
+                _t("輸入訊息"),
                 value="",
-                placeholder="👆 點擊上方「複製文字」後，在此按 Ctrl+V 貼上，再點「送出訊息」",
+                placeholder=_t("👆 點擊上方「複製文字」後，在此按 Ctrl+V 貼上，再點「送出訊息」"),
                 height=100,
                 label_visibility="collapsed",
                 key="voice_text_area"
             )
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                submit_button = st.form_submit_button("✅ 送出訊息", use_container_width=True, type="primary")
+                submit_button = st.form_submit_button(_t("✅ 送出訊息"), use_container_width=True, type="primary")
         
         if submit_button and voice_text_input.strip():
             prompt = voice_text_input.strip()
@@ -3598,7 +3692,7 @@ if st.session_state.get("pending_tts_audio") and st.session_state.voice_input_mo
         <source src="data:audio/mp3;base64,{st.session_state.pending_tts_audio}" type="audio/mp3">
     </audio>
     """
-    st.iframe(audio_html, height=1)
+    components.html(audio_html, height=1)
     st.session_state.pending_tts_audio = None  # 清除，避免重複播放
 
 st.divider()
